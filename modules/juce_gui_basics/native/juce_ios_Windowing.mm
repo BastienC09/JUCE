@@ -114,7 +114,25 @@ namespace juce
     {
         jassertfalse; // you must supply an application object for an iOS app!
     }
+  self.window = application.keyWindow;//UVI
+  [self.window sizeToFit];//UVI
 }
+
+
+//UVI
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)newDeviceToken
+{
+  [[NSNotificationCenter defaultCenter]
+   postNotificationName:@"PushDeviceToken" object:newDeviceToken];
+}
+
+//UVI
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error
+{
+  NSLog(@"Failed To Register For Remote Notifications With Error: %@", error);
+}
+
+
 
 - (void) applicationWillTerminate: (UIApplication*) application
 {
