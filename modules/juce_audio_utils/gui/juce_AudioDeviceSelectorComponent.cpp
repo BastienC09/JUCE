@@ -89,7 +89,8 @@ public:
 
     void updateDevices()
     {
-        items = MidiInput::getDevices();
+      items = MidiInput::getDevices();
+      items.removeString(juce::JUCEApplication::getInstance()->getApplicationName());
     }
 
     int getNumRows() override
@@ -1167,7 +1168,10 @@ void AudioDeviceSelectorComponent::updateAllControls()
         midiOutputSelector->addSeparator();
 
         for (int i = 0; i < midiOuts.size(); ++i)
+        {
+          if (juce::JUCEApplication::getInstance()->getApplicationName() != midiOuts[i])
             midiOutputSelector->addItem (midiOuts[i], i + 1);
+        }
 
         int current = -1;
 
