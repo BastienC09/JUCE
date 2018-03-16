@@ -456,6 +456,27 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
 
         setAudioSessionCategory (channelData.areInputChannelsAvailable() ? AVAudioSessionCategoryPlayAndRecord : AVAudioSessionCategoryPlayback);
+
+
+      //-----------------------------------------------
+      // Get the set of available inputs. If there are no audio accessories attached, there will be
+      // only one available input -- the built in microphone.
+      NSArray* inputs = [[AVAudioSession sharedInstance] availableInputs];
+      // Locate the Port corresponding to the built-in microphone.
+      AVAudioSessionPortDescription* perferredInput = nil;
+      for (AVAudioSessionPortDescription* port in inputs)
+      {
+        // ignore BluetoothHFP for input as it will be an 8k sample rate
+        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
+          continue;
+        else
+          perferredInput = port;
+      }
+      
+      NSError* theError = nil;
+      auto result = [[AVAudioSession sharedInstance]  setPreferredInput:perferredInput error:&theError];
+      //-----------------------------------------------
+
         setAudioSessionActive (true);
 
         setTargetSampleRateAndBufferSize();
