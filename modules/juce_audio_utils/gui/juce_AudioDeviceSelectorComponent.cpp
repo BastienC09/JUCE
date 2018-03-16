@@ -115,9 +115,14 @@ public:
             getLookAndFeel().drawTickBox (g, *this, x - tickW, (height - tickW) / 2, tickW, tickW,
                                           enabled, true, true, false);
 
-            g.setFont (height * 0.6f);
-            g.setColour (findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
-            g.drawText (item, x, 0, width - x - 2, height, Justification::centredLeft, true);
+          g.setFont (height * 0.6f);
+          TextLayout layout;
+          juce::AttributedString astr;
+          astr.setFont(g.getCurrentFont());
+          astr.setText(item);
+          astr.setColour(findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
+          layout.createLayout(astr, width - x - 2);
+          layout.draw(g, Rectangle<float>( x, 0, width - x - 2, height));
         }
     }
 
