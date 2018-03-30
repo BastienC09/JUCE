@@ -260,6 +260,8 @@ public:
        : hostCallback (cb),
          processor (af)
     {
+        inParameterChangedCallback = false;
+
         // VST-2 does not support disabling buses: so always enable all of them
         processor->enableAllBuses();
 
@@ -720,8 +722,18 @@ public:
     {
         if (processor != nullptr)
         {
-            jassert (isPositiveAndBelow (index, processor->getNumParameters()));
-            processor->setParameter (index, value);
+            if (auto* param = processor->getParameters()[index])
+            {
+                param->setValue (value);
+
+                inParameterChangedCallback = true;
+                param->sendValueChangedMessageToListeners (value);
+            }
+            else
+            {
+                jassert (isPositiveAndBelow (index, processor->getNumParameters()));
+                processor->setParameter (index, value);
+            }
         }
     }
 
@@ -732,6 +744,12 @@ public:
 
     void audioProcessorParameterChanged (AudioProcessor*, int index, float newValue) override
     {
+        if (inParameterChangedCallback.get())
+        {
+            inParameterChangedCallback = false;
+            return;
+        }
+
         if (hostCallback != nullptr)
             hostCallback (&vstEffect, hostOpcodeParameterChanged, index, 0, 0, newValue);
     }
@@ -1469,6 +1487,8 @@ private:
 
     HeapBlock<VstSpeakerConfiguration> cachedInArrangement, cachedOutArrangement;
 
+    ThreadLocalValue<bool> inParameterChangedCallback;
+
     static JuceVSTWrapper* getWrapper (VstEffectInterface* v) noexcept  { return static_cast<JuceVSTWrapper*> (v->effectPointer); }
 
     bool isProcessLevelOffline()
@@ -1816,9 +1836,14 @@ private:
         {
             jassert (isPositiveAndBelow (args.index, processor->getNumParameters()));
 
-            if (auto* p = processor->getParameters()[args.index])
+            if (auto* param = processor->getParameters()[args.index])
             {
-                processor->setParameter (args.index, p->getValueForText (String::fromUTF8 ((char*) args.ptr)));
+                auto value = param->getValueForText (String::fromUTF8 ((char*) args.ptr));
+                param->setValue (value);
+
+                inParameterChangedCallback = true;
+                param->sendValueChangedMessageToListeners (value);
+
                 return 1;
             }
         }
