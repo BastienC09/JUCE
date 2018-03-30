@@ -62,6 +62,11 @@ private:
         owner.audioDeviceIOCallbackInt (ins, numIns, outs, numOuts, numSamples);
     }
 
+    virtual void setAudioTimestamp (void *time)
+    {
+      owner.setAudioTimestamp(time);
+    } //UVI
+  
     void audioDeviceAboutToStart (AudioIODevice* device) override
     {
         owner.audioDeviceAboutToStartInt (device);
@@ -689,6 +694,17 @@ void AudioDeviceManager::removeAudioCallback (AudioIODeviceCallback* callbackToR
     }
 }
 
+
+void AudioDeviceManager::setAudioTimestamp (void *time)
+{
+  const ScopedLock sl (audioCallbackLock);
+  if (callbacks.size() > 0)
+  {
+    callbacks.getUnchecked(0)->setAudioTimestamp(time);
+  }
+} //UVI
+  
+  
 void AudioDeviceManager::audioDeviceIOCallbackInt (const float** inputChannelData,
                                                    int numInputChannels,
                                                    float** outputChannelData,
@@ -706,6 +722,7 @@ void AudioDeviceManager::audioDeviceIOCallbackInt (const float** inputChannelDat
 
         tempBuffer.setSize (jmax (1, numOutputChannels), jmax (1, numSamples), false, false, true);
 
+      
         callbacks.getUnchecked(0)->audioDeviceIOCallback (inputChannelData, numInputChannels,
                                                           outputChannelData, numOutputChannels, numSamples);
 

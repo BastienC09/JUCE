@@ -500,6 +500,8 @@ private:
     friend struct ContainerDeletePolicy<CallbackHandler>;
     ScopedPointer<CallbackHandler> callbackHandler;
 
+  
+    void setAudioTimestamp (void *time);
     void audioDeviceIOCallbackInt (const float** inputChannelData, int totalNumInputChannels,
                                    float** outputChannelData, int totalNumOutputChannels, int numSamples);
     void audioDeviceAboutToStartInt (AudioIODevice*);
