@@ -1074,7 +1074,7 @@ void AudioDeviceSelectorComponent::resized()
 
     if (midiInputsList != nullptr)
     {
-        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 8,
+        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 4,
                                                                                          getHeight() - r.getY() - space - itemHeight))));
         r.removeFromTop (space);
     }
