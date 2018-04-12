@@ -313,7 +313,7 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
     {
         availableBufferSizes.clear();
 
-        auto newBufferSize = tryBufferSize (sampleRate, 64);
+        auto newBufferSize = tryBufferSize (sampleRate, 256);
         jassert (newBufferSize > 0);
 
         const auto longestBufferSize  = tryBufferSize (sampleRate, 4096);
@@ -363,9 +363,9 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
                                                      dispatchAudioUnitPropertyChange,
                                                      this);
 
-        const double lowestRate = trySampleRate (4000);
+        const double lowestRate = trySampleRate (8000);
         availableSampleRates.add (lowestRate);
-        const double highestRate = trySampleRate (192000);
+        const double highestRate = trySampleRate (48000);
 
         JUCE_IOS_AUDIO_LOG ("Lowest supported sample rate: "  << lowestRate);
         JUCE_IOS_AUDIO_LOG ("Highest supported sample rate: " << highestRate);
