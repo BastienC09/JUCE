@@ -190,7 +190,7 @@ bool getNotificationValueForKey (NSNotification* notification, NSString* key, NS
 namespace juce {
 
 #ifndef JUCE_IOS_AUDIO_LOGGING
- #define JUCE_IOS_AUDIO_LOGGING 0
+ #define JUCE_IOS_AUDIO_LOGGING 1
 #endif
 
 #if JUCE_IOS_AUDIO_LOGGING
@@ -455,7 +455,7 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
 
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
 
-        setAudioSessionCategory (channelData.areInputChannelsAvailable() ? AVAudioSessionCategoryPlayAndRecord : AVAudioSessionCategoryPlayback);
+        setAudioSessionCategory (AVAudioSessionCategoryPlayAndRecord);
 
 
       //-----------------------------------------------
