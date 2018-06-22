@@ -190,7 +190,7 @@ bool getNotificationValueForKey (NSNotification* notification, NSString* key, NS
 namespace juce {
 
 #ifndef JUCE_IOS_AUDIO_LOGGING
- #define JUCE_IOS_AUDIO_LOGGING 0
+ #define JUCE_IOS_AUDIO_LOGGING 1
 #endif
 
 #if JUCE_IOS_AUDIO_LOGGING
@@ -269,6 +269,8 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         close();
     }
 
+    virtual void *getNativeAudioEngine() {return &audioUnit;}
+
     static void setAudioSessionCategory (NSString* category)
     {
         NSUInteger options = 0;
@@ -311,7 +313,7 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
     {
         availableBufferSizes.clear();
 
-        auto newBufferSize = tryBufferSize (sampleRate, 64);
+        auto newBufferSize = tryBufferSize (sampleRate, 256);
         jassert (newBufferSize > 0);
 
         const auto longestBufferSize  = tryBufferSize (sampleRate, 4096);
@@ -361,9 +363,9 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
                                                      dispatchAudioUnitPropertyChange,
                                                      this);
 
-        const double lowestRate = trySampleRate (4000);
+        const double lowestRate = trySampleRate (8000);
         availableSampleRates.add (lowestRate);
-        const double highestRate = trySampleRate (192000);
+        const double highestRate = trySampleRate (48000);
 
         JUCE_IOS_AUDIO_LOG ("Lowest supported sample rate: "  << lowestRate);
         JUCE_IOS_AUDIO_LOG ("Highest supported sample rate: " << highestRate);
@@ -453,7 +455,28 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
 
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
 
-        setAudioSessionCategory (channelData.areInputChannelsAvailable() ? AVAudioSessionCategoryPlayAndRecord : AVAudioSessionCategoryPlayback);
+        setAudioSessionCategory (AVAudioSessionCategoryPlayAndRecord);
+
+
+      //-----------------------------------------------
+      // Get the set of available inputs. If there are no audio accessories attached, there will be
+      // only one available input -- the built in microphone.
+      NSArray* inputs = [[AVAudioSession sharedInstance] availableInputs];
+      // Locate the Port corresponding to the built-in microphone.
+      AVAudioSessionPortDescription* perferredInput = nil;
+      for (AVAudioSessionPortDescription* port in inputs)
+      {
+        // ignore BluetoothHFP for input as it will be an 8k sample rate
+        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
+          continue;
+        else
+          perferredInput = port;
+      }
+      
+      NSError* theError = nil;
+      auto result = [[AVAudioSession sharedInstance]  setPreferredInput:perferredInput error:&theError];
+      //-----------------------------------------------
+
         setAudioSessionActive (true);
 
         setTargetSampleRateAndBufferSize();
@@ -867,6 +890,7 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
                 for (int i = 0; i < channelData.inputs->numActiveChannels; ++i)
                     zeromem (inputData, sizeof (float) * numFrames);
             }
+            callback->setAudioTimestamp((void*)time);
 
             callback->audioDeviceIOCallback ((const float**) inputData,  channelData.inputs ->numActiveChannels,
                                                              outputData, channelData.outputs->numActiveChannels,
@@ -1344,10 +1368,10 @@ void iOSAudioIODevice::close()                                      { pimpl->clo
 
 void iOSAudioIODevice::start (AudioIODeviceCallback* callbackToUse) { pimpl->start (callbackToUse); }
 void iOSAudioIODevice::stop()                                       { pimpl->stop(); }
-
+void *iOSAudioIODevice::getNativeAudioEngine() {return pimpl->getNativeAudioEngine();} //UVI
 Array<double> iOSAudioIODevice::getAvailableSampleRates()           { return pimpl->availableSampleRates; }
 Array<int> iOSAudioIODevice::getAvailableBufferSizes()              { return pimpl->availableBufferSizes; }
-
+  
 bool iOSAudioIODevice::setAudioPreprocessingEnabled (bool enabled)  { return pimpl->setAudioPreprocessingEnabled (enabled); }
 
 bool iOSAudioIODevice::isPlaying()                                  { return pimpl->isRunning && pimpl->callback != nullptr; }

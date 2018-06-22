@@ -89,7 +89,8 @@ public:
 
     void updateDevices()
     {
-        items = MidiInput::getDevices();
+      items = MidiInput::getDevices();
+      items.removeString(juce::JUCEApplication::getInstance()->getApplicationName());
     }
 
     int getNumRows() override
@@ -113,10 +114,15 @@ public:
 
             getLookAndFeel().drawTickBox (g, *this, x - tickW, (height - tickW) / 2, tickW, tickW,
                                           enabled, true, true, false);
+          g.setFont (height * 0.6f);
+          TextLayout layout;
+          juce::AttributedString astr;
+          astr.setFont(g.getCurrentFont());
+          astr.setText(item);
+          astr.setColour(findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
+          layout.createLayout(astr, width - x - 2);
+          layout.draw(g, Rectangle<float>( x, 0, width - x - 2, height));
 
-            g.setFont (height * 0.6f);
-            g.setColour (findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
-            g.drawText (item, x + 5, 0, width - x - 5, height, Justification::centredLeft, true);
         }
     }
 
@@ -1068,7 +1074,7 @@ void AudioDeviceSelectorComponent::resized()
 
     if (midiInputsList != nullptr)
     {
-        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 8,
+        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 4,
                                                                                          getHeight() - r.getY() - space - itemHeight))));
         r.removeFromTop (space);
     }
@@ -1167,7 +1173,10 @@ void AudioDeviceSelectorComponent::updateAllControls()
         midiOutputSelector->addSeparator();
 
         for (int i = 0; i < midiOuts.size(); ++i)
+        {
+          if (juce::JUCEApplication::getInstance()->getApplicationName() != midiOuts[i])
             midiOutputSelector->addItem (midiOuts[i], i + 1);
+        }
 
         int current = -1;
 
