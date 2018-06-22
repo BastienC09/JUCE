@@ -35,7 +35,8 @@
 #include "jucer_ProjectBuildInfo.h"
 #include "jucer_ClientServerMessages.h"
 #include "jucer_CompileEngineClient.h"
-#include "../LiveBuildEngine/jucer_CompileEngineServer.h"
+#include "jucer_CompileEngineServer.h"
+#include "jucer_CompileEngineSettings.h"
 
 #ifndef RUN_CLANG_IN_CHILD_PROCESS
  #error
@@ -213,8 +214,7 @@ public:
 
     void restartServer()
     {
-        server.reset();
-        server = new ClientIPC (owner);
+        server.reset (new ClientIPC (owner));
         sendRebuild();
     }
 
@@ -278,7 +278,7 @@ public:
         return true;
     }
 
-    ScopedPointer<ClientIPC> server;
+    std::unique_ptr<ClientIPC> server;
 
     bool openedOk = false;
     bool isRunningApp = false;
@@ -370,8 +370,8 @@ private:
         scanProjectItem (proj.getMainGroup(), compileUnits, userFiles);
 
         {
-            auto isVST3Host = project.getModules().isModuleEnabled ("juce_audio_processors")
-                           && project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST3");
+            auto isVSTHost = project.getModules().isModuleEnabled ("juce_audio_processors")
+                   && (project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST3") || project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST"));
 
             auto isPluginProject = proj.getProjectType().isAudioPlugin();
 
@@ -390,10 +390,10 @@ private:
 
 
                         m->findAndAddCompiledUnits (*exporter, nullptr, compileUnits,
-                                                    isPluginProject || isVST3Host ? ProjectType::Target::SharedCodeTarget
-                                                                                  : ProjectType::Target::unspecified);
+                                                    isPluginProject || isVSTHost ? ProjectType::Target::SharedCodeTarget
+                                                                                 : ProjectType::Target::unspecified);
 
-                        if (isPluginProject || isVST3Host)
+                        if (isPluginProject || isVSTHost)
                             m->findAndAddCompiledUnits (*exporter, nullptr, compileUnits, ProjectType::Target::StandalonePlugIn);
                     }
 
@@ -422,7 +422,7 @@ private:
     {
         auto liveModules = project.getProjectRoot().getChildWithName (Ids::MODULES);
 
-        ScopedPointer<XmlElement> xml (XmlDocument::parse (project.getFile()));
+        std::unique_ptr<XmlElement> xml (XmlDocument::parse (project.getFile()));
 
         if (xml == nullptr || ! xml->hasTagName (Ids::JUCERPROJECT.toString()))
             return false;
@@ -458,17 +458,26 @@ private:
         StringArray paths;
         paths.addArray (getSearchPathsFromString (project.getCompileEngineSettings().getSystemHeaderPathString()));
 
-        auto isVST3Host = project.getModules().isModuleEnabled ("juce_audio_processors")
-                       && project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST3");
+        auto isVSTHost = project.getModules().isModuleEnabled ("juce_audio_processors")
+                       && (project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST3")
+                             || project.isConfigFlagEnabled ("JUCE_PLUGINHOST_VST"));
 
-        if (project.getProjectType().isAudioPlugin() || isVST3Host)
-            paths.add (getAppSettings().getStoredPath (Ids::vst3Path).toString());
+        auto customVst3Path = getAppSettings().getStoredPath (Ids::vst3Path).toString();
+
+        if (customVst3Path.isNotEmpty() && (project.getProjectType().isAudioPlugin() || isVSTHost))
+            paths.add (customVst3Path);
 
         OwnedArray<LibraryModule> modules;
         project.getModules().createRequiredModules (modules);
 
         for (auto* module : modules)
+        {
             paths.addIfNotAlreadyThere (module->getFolder().getParentDirectory().getFullPathName());
+
+            if (customVst3Path.isEmpty() && (project.getProjectType().isAudioPlugin() || isVSTHost))
+                if (module->getID() == "juce_audio_processors")
+                    paths.addIfNotAlreadyThere (module->getFolder().getChildFile ("format_types").getChildFile ("VST3_SDK").getFullPathName());
+        }
 
         return convertSearchPathsToAbsolute (paths);
     }
@@ -516,7 +525,7 @@ CompileEngineChildProcess::~CompileEngineChildProcess()
 void CompileEngineChildProcess::createProcess()
 {
     jassert (process == nullptr);
-    process = new ChildProcess (*this, project);
+    process.reset (new ChildProcess (*this, project));
 
     if (! process->openedOk)
         process.reset();
@@ -598,7 +607,7 @@ void CompileEngineChildProcess::killApp()
 
 void CompileEngineChildProcess::handleAppLaunched()
 {
-    runningAppProcess = process;
+    runningAppProcess.reset (process.release());
     runningAppProcess->isRunningApp = true;
     createProcess();
 }

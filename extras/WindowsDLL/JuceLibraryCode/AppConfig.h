@@ -150,6 +150,10 @@
  //#define JUCE_PLUGINHOST_AU 0
 #endif
 
+#ifndef    JUCE_PLUGINHOST_LADSPA
+ //#define JUCE_PLUGINHOST_LADSPA 0
+#endif
+
 //==============================================================================
 // juce_audio_utils flags:
 
@@ -257,6 +261,10 @@
 
 #ifndef    JUCE_USE_CAMERA
  //#define JUCE_USE_CAMERA 0
+#endif
+
+#ifndef    JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME
+ //#define JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME 1
 #endif
 //==============================================================================
 #ifndef    JUCE_STANDALONE_APPLICATION

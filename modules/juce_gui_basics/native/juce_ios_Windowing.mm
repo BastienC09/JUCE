@@ -153,7 +153,7 @@ namespace juce
             }
         }];
 
-        MessageManager::callAsync ([self,application,app]  { app->suspended(); });
+        MessageManager::callAsync ([app] { app->suspended(); });
        #else
         ignoreUnused (application);
         app->suspended();
@@ -554,7 +554,7 @@ public:
 private:
     int result;
     bool resultReceived;
-    ScopedPointer<ModalComponentManager::Callback> callback;
+    std::unique_ptr<ModalComponentManager::Callback> callback;
     const bool isAsync;
 
    #if JUCE_USE_NEW_IOS_ALERTWINDOW
@@ -619,8 +619,8 @@ bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType
                                                       Component* /*associatedComponent*/,
                                                       ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK",
-                                                        nil, callback, callback != nullptr));
+    std::unique_ptr<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK",
+                                                          nil, callback, callback != nullptr));
 
     if (callback == nullptr)
         return mb->getResult() == 1;
@@ -634,7 +634,7 @@ int JUCE_CALLTYPE NativeMessageBox::showYesNoCancelBox (AlertWindow::AlertIconTy
                                                         Component* /*associatedComponent*/,
                                                         ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"Yes", @"No", callback, callback != nullptr));
+    std::unique_ptr<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"Yes", @"No", callback, callback != nullptr));
 
     if (callback == nullptr)
         return mb->getResult();
@@ -648,7 +648,7 @@ int JUCE_CALLTYPE NativeMessageBox::showYesNoBox (AlertWindow::AlertIconType /*i
                                                   Component* /*associatedComponent*/,
                                                   ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"No", @"Yes", nil, callback, callback != nullptr));
+    std::unique_ptr<iOSMessageBox> mb (new iOSMessageBox (title, message, @"No", @"Yes", nil, callback, callback != nullptr));
 
     if (callback == nullptr)
         return mb->getResult();

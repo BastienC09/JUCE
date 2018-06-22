@@ -118,6 +118,7 @@ namespace Ids
     DECLARE_ID (auBinaryLocation);
     DECLARE_ID (rtasBinaryLocation);
     DECLARE_ID (aaxBinaryLocation);
+    DECLARE_ID (unityPluginBinaryLocation);
     DECLARE_ID (enablePluginBinaryCopyStep);
     DECLARE_ID (stripLocalSymbols);
     DECLARE_ID (osxSDK);
@@ -125,6 +126,8 @@ namespace Ids
     DECLARE_ID (osxArchitecture);
     DECLARE_ID (iosCompatibility);
     DECLARE_ID (extraFrameworks);
+    DECLARE_ID (extraCustomFrameworks);
+    DECLARE_ID (embeddedFrameworks);
     DECLARE_ID (extraDLLs);
     DECLARE_ID (winArchitecture);
     DECLARE_ID (winWarningLevel);
@@ -178,6 +181,8 @@ namespace Ids
     DECLARE_ID (overwriteOnSave);
     DECLARE_ID (microphonePermissionNeeded);
     DECLARE_ID (microphonePermissionsText);
+    DECLARE_ID (cameraPermissionNeeded);
+    DECLARE_ID (cameraPermissionText);
     DECLARE_ID (androidJavaLibs);
     DECLARE_ID (androidRepositories);
     DECLARE_ID (androidDependencies);
@@ -215,6 +220,7 @@ namespace Ids
     DECLARE_ID (androidSharedLibraries);
     DECLARE_ID (androidScreenOrientation);
     DECLARE_ID (androidExtraAssetsFolder);
+    DECLARE_ID (androidStudioExePath);
     DECLARE_ID (iosDeviceFamily);
     const Identifier iPhoneScreenOrientation ("iosScreenOrientation"); // old name is confusing
     DECLARE_ID (iPadScreenOrientation);
@@ -227,7 +233,7 @@ namespace Ids
     DECLARE_ID (iCloudPermissions);
     DECLARE_ID (iosDevelopmentTeamID);
     DECLARE_ID (iosAppGroupsId);
-    DECLARE_ID (iosAppExtensionDuplicateResourcesFolder);
+    DECLARE_ID (duplicateAppExResourcesFolder);
     DECLARE_ID (buildToolsVersion);
     DECLARE_ID (gradleVersion);
     const Identifier androidPluginVersion ("gradleWrapperVersion"); // old name is very confusing, but we need to remain backward compatible
@@ -242,7 +248,7 @@ namespace Ids
     DECLARE_ID (colour);
     DECLARE_ID (userNotes);
     DECLARE_ID (maxBinaryFileSize);
-    DECLARE_ID (includeBinaryInAppConfig);
+    DECLARE_ID (includeBinaryInJuceHeader);
     DECLARE_ID (binaryDataNamespace);
     DECLARE_ID (characterSet);
     DECLARE_ID (JUCERPROJECT);
@@ -296,6 +302,7 @@ namespace Ids
     DECLARE_ID (buildRTAS);
     DECLARE_ID (buildAAX);
     DECLARE_ID (buildStandalone);
+    DECLARE_ID (buildUnity);
     DECLARE_ID (enableIAA);
     DECLARE_ID (pluginName);
     DECLARE_ID (pluginDesc);

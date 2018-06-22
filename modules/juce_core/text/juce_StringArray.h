@@ -51,9 +51,18 @@ public:
     template <typename... OtherElements>
     StringArray (StringRef firstValue, OtherElements... otherValues) : strings (firstValue, otherValues...) {}
 
-   #if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS
+    /** Creates an array containing a list of strings. */
     StringArray (const std::initializer_list<const char*>& strings);
-   #endif
+
+    /** Creates a StringArray by moving from an Array<String> */
+    StringArray (Array<String>&&) noexcept;
+
+    /** Creates a StringArray from an array of objects which can be implicitly converted to Strings. */
+    template <typename Type>
+    StringArray (const Array<Type>& stringArray)
+    {
+        addArray (stringArray.begin(), stringArray.end());
+    }
 
     /** Creates an array from a raw array of strings.
         @param strings          an array of strings to add
@@ -96,6 +105,14 @@ public:
 
     /** Move assignment operator */
     StringArray& operator= (StringArray&&) noexcept;
+
+    /** Copies a StringArray from an array of objects which can be implicitly converted to Strings. */
+    template <typename Type>
+    StringArray& operator= (const Array<Type>& stringArray)
+    {
+        addArray (stringArray.begin(), stringArray.end());
+        return *this;
+    }
 
     /** Swaps the contents of this and another StringArray. */
     void swapWith (StringArray&) noexcept;
@@ -208,6 +225,18 @@ public:
     void addArray (const StringArray& other,
                    int startIndex = 0,
                    int numElementsToAdd = -1);
+
+    /** Adds items from a range of start/end iterators of some kind of objects which
+        can be implicitly converted to Strings.
+    */
+    template <typename Iterator>
+    void addArray (Iterator&& start, Iterator&& end)
+    {
+        ensureStorageAllocated (size() + (int) static_cast<size_t> (end - start));
+
+        while (start != end)
+            strings.add (*start++);
+    }
 
     /** Merges the strings from another array into this one.
         This will not add a string that already exists.

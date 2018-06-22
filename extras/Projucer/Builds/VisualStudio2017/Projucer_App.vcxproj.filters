@@ -541,6 +541,9 @@
     <ClCompile Include="..\..\..\..\modules\juce_core\containers\juce_PropertySet.cpp">
       <Filter>JUCE Modules\juce_core\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\modules\juce_core\containers\juce_SparseSet.cpp">
+      <Filter>JUCE Modules\juce_core\containers</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\modules\juce_core\containers\juce_Variant.cpp">
       <Filter>JUCE Modules\juce_core\containers</Filter>
     </ClCompile>
@@ -3658,6 +3661,9 @@
     </None>
     <None Include="..\..\Source\BinaryData\Icons\wizard_StaticLibrary.svg">
       <Filter>Projucer\BinaryData\Icons</Filter>
+    </None>
+    <None Include="..\..\Source\BinaryData\Templates\jucer_UnityPluginGUIScript.cs">
+      <Filter>Projucer\BinaryData\Templates</Filter>
     </None>
     <None Include="..\..\Source\BinaryData\colourscheme_dark.xml">
       <Filter>Projucer\BinaryData</Filter>

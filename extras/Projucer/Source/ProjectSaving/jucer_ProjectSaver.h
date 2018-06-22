@@ -93,12 +93,19 @@ public:
 
             auto projectRootHash = project.getProjectRoot().toXmlString().hashCode();
 
+            if (project.getProjectType().isAudioPlugin())
+            {
+                writePluginCharacteristicsFile();
+
+                if (project.shouldBuildUnityPlugin())
+                    writeUnityScriptFile();
+            }
+
             writeAppConfigFile (modules, appConfigUserContent);
             writeBinaryDataFiles();
             writeAppHeader (modules);
             writeModuleCppWrappers (modules);
             writeProjects (modules, specifiedExporterToSave, ! showProgressBox);
-            writeAppConfigFile (modules, appConfigUserContent); // (this is repeated in case the projects added anything to it)
 
             // if the project root has changed after writing the other files then re-save it
             if (project.getProjectRoot().toXmlString().hashCode() != projectRootHash)
@@ -147,16 +154,13 @@ public:
 
         if (errors.size() == 0)
         {
+            if (project.getProjectType().isAudioPlugin())
+                writePluginCharacteristicsFile();
+
             writeAppConfigFile (modules, loadUserContentFromAppConfig());
             writeBinaryDataFiles();
             writeAppHeader (modules);
             writeModuleCppWrappers (modules);
-
-            if (project.getProjectType().isAudioPlugin())
-            {
-                writePluginCharacteristicsFile();
-                writeAppConfigFile (modules, loadUserContentFromAppConfig());
-            }
 
             return Result::ok();
         }
@@ -315,7 +319,7 @@ private:
 
     void writeMainProjectFile()
     {
-        ScopedPointer<XmlElement> xml (project.getProjectRoot().createXml());
+        std::unique_ptr<XmlElement> xml (project.getProjectRoot().createXml());
         jassert (xml != nullptr);
 
         if (xml != nullptr)
@@ -543,7 +547,7 @@ private:
             out << newLine;
         }
 
-        if (hasBinaryData && project.shouldIncludeBinaryInAppConfig())
+        if (hasBinaryData && project.shouldIncludeBinaryInJuceHeader())
             out << CodeHelpers::createIncludeStatement (project.getBinaryDataHeaderFile(), appConfigFile) << newLine;
 
         out << newLine
@@ -670,6 +674,24 @@ private:
 
     void writePluginCharacteristicsFile();
 
+    void writeUnityScriptFile()
+    {
+        String unityScriptContents (BinaryData::jucer_UnityPluginGUIScript_cs);
+
+        auto projectName = Project::addUnityPluginPrefixIfNecessary (project.getProjectNameString());
+
+        unityScriptContents = unityScriptContents.replace ("%%plugin_name%%",        projectName)
+                                                 .replace ("%%plugin_vendor%%",      project.getPluginManufacturerString())
+                                                 .replace ("%%plugin_description%%", project.getPluginDescriptionString());
+
+        auto f = getGeneratedCodeFolder().getChildFile (project.getUnityScriptName());
+
+        MemoryOutputStream out;
+        out << unityScriptContents;
+
+        replaceFileIfDifferent (f, out);
+    }
+
     void writeProjects (const OwnedArray<LibraryModule>&, const String&, bool);
 
     void saveExporter (ProjectExporter* exporter, const OwnedArray<LibraryModule>& modules)
@@ -699,13 +721,13 @@ private:
 
         JobStatus runJob() override
         {
-            owner.saveExporter (exporter, modules);
+            owner.saveExporter (exporter.get(), modules);
             return jobHasFinished;
         }
 
     private:
         ProjectSaver& owner;
-        ScopedPointer<ProjectExporter> exporter;
+        std::unique_ptr<ProjectExporter> exporter;
         const OwnedArray<LibraryModule>& modules;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExporterJob)

@@ -310,7 +310,7 @@ protected:
 
 private:
     //==============================================================================
-    ScopedPointer<ScrollBar> verticalScrollBar, horizontalScrollBar;
+    std::unique_ptr<ScrollBar> verticalScrollBar, horizontalScrollBar;
     Component contentHolder;
     WeakReference<Component> contentComp;
     Rectangle<int> lastVisibleArea;
@@ -322,9 +322,7 @@ private:
     bool vScrollbarRight = true, hScrollbarBottom = true;
 
     struct DragToScrollListener;
-    friend struct DragToScrollListener;
-    friend struct ContainerDeletePolicy<DragToScrollListener>;
-    ScopedPointer<DragToScrollListener> dragToScrollListener;
+    std::unique_ptr<DragToScrollListener> dragToScrollListener;
 
     Point<int> viewportPosToCompPos (Point<int>) const;
 

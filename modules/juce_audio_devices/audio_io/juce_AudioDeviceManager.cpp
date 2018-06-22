@@ -739,7 +739,7 @@ void AudioDeviceManager::audioDeviceIOCallbackInt (const float** inputChannelDat
         cpuUsageMs += filterAmount * (msTaken - cpuUsageMs);
 
         if (msTaken > msPerBlock)
-            xruns++;
+            ++xruns;
     }
     else
     {
@@ -977,7 +977,7 @@ double AudioDeviceManager::LevelMeter::getCurrentLevel() const noexcept
 void AudioDeviceManager::playTestSound()
 {
     { // cunningly nested to swap, unlock and delete in that order.
-        ScopedPointer<AudioBuffer<float>> oldSound;
+        std::unique_ptr<AudioBuffer<float>> oldSound;
 
         {
             const ScopedLock sl (audioCallbackLock);
@@ -1013,7 +1013,7 @@ void AudioDeviceManager::playTestSound()
 int AudioDeviceManager::getXRunCount() const noexcept
 {
     auto deviceXRuns = (currentAudioDevice != nullptr ? currentAudioDevice->getXRunCount() : -1);
-    return (deviceXRuns >= 0 ? deviceXRuns : xruns);
+    return jmax (0, deviceXRuns) + xruns;
 }
 
 } // namespace juce

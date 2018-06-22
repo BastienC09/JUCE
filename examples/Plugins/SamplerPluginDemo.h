@@ -163,16 +163,14 @@ public:
         source.read (&data, 0, length + 4, 0, true, true);
     }
 
-    double getSampleRate() const { return sourceSampleRate; }
-
-    int getLength() const { return length; }
-
-    const AudioSampleBuffer& getBuffer() const { return data; }
+    double getSampleRate() const                    { return sourceSampleRate; }
+    int getLength() const                           { return length; }
+    const AudioBuffer<float>& getBuffer() const     { return data; }
 
 private:
     double sourceSampleRate;
     int length;
-    AudioSampleBuffer data;
+    AudioBuffer<float> data;
 };
 
 //==============================================================================
@@ -694,7 +692,7 @@ public:
     }
 
 private:
-    void valueTreePropertyChanged (ValueTree &, const Identifier &property) override
+    void valueTreePropertyChanged (ValueTree&, const Identifier& property) override
     {
         if (property == IDs::totalRange)
         {
@@ -854,7 +852,7 @@ public:
     }
 
 private:
-    void valueTreePropertyChanged (ValueTree&, const Identifier &property) override
+    void valueTreePropertyChanged (ValueTree&, const Identifier& property) override
     {
         if (property == IDs::synthVoices)
         {
@@ -2006,8 +2004,7 @@ private:
           loopKindLabel            { {}, "Looping Mode" };
 
 
-    FileChooser fileChooser { "Select a file to load...",
-                              File::nonexistent,
+    FileChooser fileChooser { "Select a file to load...", File(),
                               dataModel.getAudioFormatManager().getWildcardForAllFormats() };
 
     UndoManager* undoManager;
@@ -2065,7 +2062,7 @@ public:
     {
         if (auto* asset = createAssetInputStream ("cello.wav"))
         {
-            ScopedPointer<InputStream> inputStream (asset);
+            std::unique_ptr<InputStream> inputStream (asset);
             inputStream->readIntoMemoryBlock (mb);
 
             readerFactory.reset (new MemoryAudioFormatReaderFactory (mb.getData(), mb.getSize()));

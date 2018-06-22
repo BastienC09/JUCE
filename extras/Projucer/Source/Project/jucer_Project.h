@@ -27,12 +27,12 @@
 #pragma once
 
 #include "jucer_ProjectType.h"
-#include "../LiveBuildEngine/jucer_CompileEngineSettings.h"
 
 class ProjectExporter;
 class LibraryModule;
 class EnabledModuleList;
 class ProjectContentComponent;
+class CompileEngineSettings;
 
 //==============================================================================
 class Project  : public FileBasedDocument,
@@ -116,7 +116,7 @@ public:
     StringPairArray getPreprocessorDefs() const          { return parsedPreprocessorDefs; }
 
     int getMaxBinaryFileSize() const                     { return maxBinaryFileSizeValue.get(); }
-    bool shouldIncludeBinaryInAppConfig() const          { return includeBinaryDataInAppConfigValue.get(); }
+    bool shouldIncludeBinaryInJuceHeader() const         { return includeBinaryDataInJuceHeaderValue.get(); }
     String getBinaryDataNamespaceString() const          { return binaryDataNamespaceValue.get(); }
 
     bool shouldDisplaySplashScreen() const               { return displaySplashScreenValue.get(); }
@@ -158,6 +158,7 @@ public:
     bool shouldBuildRTAS() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildRTAS); }
     bool shouldBuildAAX() const                       { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildAAX); }
     bool shouldBuildStandalonePlugin() const          { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildStandalone); }
+    bool shouldBuildUnityPlugin() const               { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildUnity); }
     bool shouldEnableIAA() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::enableIAA); }
 
     //==============================================================================
@@ -198,6 +199,15 @@ public:
 
     String getIAATypeCode();
     String getIAAPluginName();
+
+    String getUnityScriptName() const    { return addUnityPluginPrefixIfNecessary (getProjectNameString()) + "_UnityScript.cs"; }
+    static String addUnityPluginPrefixIfNecessary (const String& name)
+    {
+        if (! name.startsWithIgnoreCase ("audioplugin"))
+            return "audioplugin_" + name;
+
+        return name;
+    }
 
     //==============================================================================
     bool isAUPluginHost();
@@ -290,6 +300,8 @@ public:
         Icon getIcon (bool isOpen = false) const;
         bool isIconCrossedOut() const;
 
+        bool needsSaving() const noexcept;
+
         Project& project;
         ValueTree state;
 
@@ -319,7 +331,7 @@ public:
         ProjectExporter& operator*() const       { return *exporter; }
         ProjectExporter* operator->() const      { return exporter.get(); }
 
-        ScopedPointer<ProjectExporter> exporter;
+        std::unique_ptr<ProjectExporter> exporter;
         int index;
 
     private:
@@ -384,21 +396,21 @@ public:
     bool shouldSendGUIBuilderAnalyticsEvent() noexcept;
 
     //==============================================================================
-    CompileEngineSettings& getCompileEngineSettings()    { return compileEngineSettings; }
+    CompileEngineSettings& getCompileEngineSettings()    { return *compileEngineSettings; }
 
 private:
     ValueTree projectRoot  { Ids::JUCERPROJECT };
 
     ValueWithDefault projectNameValue, projectUIDValue, projectTypeValue, versionValue, bundleIdentifierValue, companyNameValue, companyCopyrightValue,
                      companyWebsiteValue, companyEmailValue, displaySplashScreenValue, reportAppUsageValue, splashScreenColourValue, cppStandardValue,
-                     headerSearchPathsValue, preprocessorDefsValue, userNotesValue, maxBinaryFileSizeValue, includeBinaryDataInAppConfigValue, binaryDataNamespaceValue;
+                     headerSearchPathsValue, preprocessorDefsValue, userNotesValue, maxBinaryFileSizeValue, includeBinaryDataInJuceHeaderValue, binaryDataNamespaceValue;
 
     ValueWithDefault pluginFormatsValue, pluginNameValue, pluginDescriptionValue, pluginManufacturerValue, pluginManufacturerCodeValue,
                      pluginCodeValue, pluginChannelConfigsValue, pluginCharacteristicsValue, pluginAUExportPrefixValue, pluginAAXIdentifierValue,
                      pluginAUMainTypeValue, pluginRTASCategoryValue, pluginVSTCategoryValue, pluginVST3CategoryValue, pluginAAXCategoryValue;
 
     //==============================================================================
-    CompileEngineSettings compileEngineSettings  { projectRoot };
+    std::unique_ptr<CompileEngineSettings> compileEngineSettings;
 
     //==============================================================================
     bool shouldWriteLegacyPluginFormatSettings = false;
@@ -427,7 +439,7 @@ private:
 
     //==============================================================================
     friend class Item;
-    ScopedPointer<EnabledModuleList> enabledModulesList;
+    std::unique_ptr<EnabledModuleList> enabledModulesList;
     bool isSaving = false;
     Time modificationTime;
     StringPairArray parsedPreprocessorDefs;

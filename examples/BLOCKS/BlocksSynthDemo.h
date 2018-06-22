@@ -160,7 +160,7 @@ struct SineSound : public SynthesiserSound
 */
 struct SineVoice : public OscillatorBase
 {
-    SineVoice() {};
+    SineVoice() {}
 
     bool canPlaySound (SynthesiserSound* sound) override { return dynamic_cast<SineSound*> (sound) != nullptr; }
 
@@ -191,7 +191,7 @@ struct SquareSound : public SynthesiserSound
 */
 struct SquareVoice : public OscillatorBase
 {
-    SquareVoice() {};
+    SquareVoice() {}
 
     bool canPlaySound (SynthesiserSound* sound) override { return dynamic_cast<SquareSound*> (sound) != nullptr; }
 
@@ -352,7 +352,11 @@ public:
     }
 
 private:
+   #ifndef JUCE_DEMO_RUNNER
     AudioDeviceManager audioDeviceManager;
+   #else
+    AudioDeviceManager& audioDeviceManager { getSharedAudioDeviceManager (0, 2) };
+   #endif
     Synthesiser synthesiser;
 
     //==============================================================================
@@ -596,12 +600,12 @@ public:
 
        #if JUCE_IOS
         connectButton.setButtonText ("Connect");
-        connectButton.onClick = [this] { BluetoothMidiDevicePairingDialogue::open(); };
+        connectButton.onClick = [] { BluetoothMidiDevicePairingDialogue::open(); };
         addAndMakeVisible (connectButton);
        #endif
 
         setSize (600, 400);
-    };
+    }
 
     ~BlocksSynthDemo()
     {
