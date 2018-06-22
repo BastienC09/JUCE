@@ -279,8 +279,7 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         options |= AVAudioSessionCategoryOptionMixWithOthers; // Alternatively AVAudioSessionCategoryOptionDuckOthers
        #endif
 
-        if (category == AVAudioSessionCategoryPlayAndRecord)
-            options |= (AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionAllowBluetooth);
+      options |=   AVAudioSessionCategoryOptionAllowBluetoothA2DP;
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
                                                              withOptions: options
@@ -431,6 +430,31 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         JUCE_IOS_AUDIO_LOG ("Actual buffer size: " << bufferSize);
     }
 
+    void setPreferedInputPort()
+    {
+      //-----------------------------------------------
+      // Get the set of available inputs. If there are no audio accessories attached, there will be
+      // only one available input -- the built in microphone.
+      NSArray* inputs = [[AVAudioSession sharedInstance] availableInputs];
+      // Locate the Port corresponding to the built-in microphone.
+      AVAudioSessionPortDescription* perferredInput = nil;
+      for (AVAudioSessionPortDescription* port in inputs)
+      {
+        JUCE_IOS_AUDIO_LOG("Check Input Port NAME:" << juce::String([port.portName UTF8String]) << " TYPE: " << juce::String([port.portType UTF8String]));
+        // ignore BluetoothHFP for input as it will be an 8k sample rate
+        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
+          continue;
+        else
+          perferredInput = port;
+      }
+    
+      JUCE_IOS_AUDIO_LOG("Use Input Port NAME:" << juce::String([perferredInput.portName UTF8String]) << " TYPE: " << juce::String([perferredInput.portType UTF8String]));
+      JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance]  setPreferredInput:perferredInput error:&error]);
+      
+      //-----------------------------------------------
+    }
+  
+  
     String open (const BigInteger& inputChannelsWanted,
                  const BigInteger& outputChannelsWanted,
                  double sampleRateWanted, int bufferSizeWanted)
@@ -454,29 +478,9 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
                             << ", targetBufferSize: " << targetBufferSize);
 
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
-
-        setAudioSessionCategory (AVAudioSessionCategoryPlayAndRecord);
-
-
-      //-----------------------------------------------
-      // Get the set of available inputs. If there are no audio accessories attached, there will be
-      // only one available input -- the built in microphone.
-      NSArray* inputs = [[AVAudioSession sharedInstance] availableInputs];
-      // Locate the Port corresponding to the built-in microphone.
-      AVAudioSessionPortDescription* perferredInput = nil;
-      for (AVAudioSessionPortDescription* port in inputs)
-      {
-        // ignore BluetoothHFP for input as it will be an 8k sample rate
-        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
-          continue;
-        else
-          perferredInput = port;
-      }
       
-      NSError* theError = nil;
-      auto result = [[AVAudioSession sharedInstance]  setPreferredInput:perferredInput error:&theError];
-      //-----------------------------------------------
-
+        setAudioSessionCategory (AVAudioSessionCategoryPlayAndRecord);
+      
         setAudioSessionActive (true);
 
         setTargetSampleRateAndBufferSize();
@@ -1035,6 +1039,8 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
             AudioUnitSetProperty (audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &format, sizeof (format));
         }
 
+        setPreferedInputPort();
+      
         AudioUnitInitialize (audioUnit);
 
         {
