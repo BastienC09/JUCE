@@ -40,7 +40,7 @@
 #endif
 
 #ifndef JUCE_REPORT_APP_USAGE
- #define JUCE_REPORT_APP_USAGE 0
+ #define JUCE_REPORT_APP_USAGE 1
 #endif
 
 // END SECTION A
@@ -156,6 +156,10 @@
  //#define JUCE_PLUGINHOST_AU 0
 #endif
 
+#ifndef    JUCE_PLUGINHOST_LADSPA
+ //#define JUCE_PLUGINHOST_LADSPA 0
+#endif
+
 //==============================================================================
 // juce_audio_utils flags:
 
@@ -199,7 +203,7 @@
 #endif
 
 #ifndef    JUCE_ALLOW_STATIC_NULL_VARIABLES
- //#define JUCE_ALLOW_STATIC_NULL_VARIABLES 1
+ #define   JUCE_ALLOW_STATIC_NULL_VARIABLES 0
 #endif
 
 //==============================================================================
@@ -286,6 +290,10 @@
 
 #ifndef    JUCE_USE_CAMERA
  #define   JUCE_USE_CAMERA 1
+#endif
+
+#ifndef    JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME
+ //#define JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME 1
 #endif
 //==============================================================================
 #ifndef    JUCE_STANDALONE_APPLICATION

@@ -50,7 +50,7 @@ public:
             Image image (Image::ARGB, 200, 200, true);
             Graphics g (image);
 
-            ScopedPointer<Drawable> svgDrawable (Drawable::createFromImageData (iconData, (size_t) iconDataSize));
+            std::unique_ptr<Drawable> svgDrawable (Drawable::createFromImageData (iconData, (size_t) iconDataSize));
 
             svgDrawable->drawWithin (g, image.getBounds().toFloat(), RectanglePlacement::fillDestination, 1.0f);
 
@@ -234,7 +234,7 @@ public:
         BuildConfiguration (Project& project, const ValueTree& configNode, const ProjectExporter&);
         ~BuildConfiguration();
 
-        typedef ReferenceCountedObjectPtr<BuildConfiguration> Ptr;
+        using Ptr = ReferenceCountedObjectPtr<BuildConfiguration>;
 
         //==============================================================================
         virtual void createConfigProperties (PropertyListBuilder&) = 0;
@@ -244,8 +244,12 @@ public:
         String getName() const                                 { return configNameValue.get(); }
         bool isDebug() const                                   { return isDebugValue.get(); }
 
-        String getTargetBinaryNameString() const               { return targetNameValue.get(); }
         String getTargetBinaryRelativePathString() const       { return targetBinaryPathValue.get(); }
+        String getTargetBinaryNameString (bool isUnityPlugin = false) const
+        {
+            return (isUnityPlugin ? Project::addUnityPluginPrefixIfNecessary (targetNameValue.get().toString())
+                                  : targetNameValue.get().toString());
+        }
 
         int getOptimisationLevelInt() const                    { return optimisationLevelValue.get(); }
         String getGCCOptimisationFlag() const;
@@ -441,6 +445,7 @@ private:
     void createIconProperties (PropertyListBuilder&);
     void addVSTPathsIfPluginOrHost();
     void addCommonAudioPluginSettings();
+    RelativePath getInternalVST3SDKPath();
     void addVST3FolderToPath();
     void addAAXFoldersToPath();
 

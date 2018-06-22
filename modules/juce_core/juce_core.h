@@ -32,7 +32,7 @@
 
   ID:               juce_core
   vendor:           juce
-  version:          5.3.0
+  version:          5.3.2
   name:             JUCE core classes
   description:      The essential set of basic JUCE classes, as required by all the other JUCE modules. Includes text, container, memory, threading and i/o functionality.
   website:          http://www.juce.com/juce
@@ -42,7 +42,6 @@
   OSXFrameworks:    Cocoa IOKit
   iOSFrameworks:    Foundation
   linuxLibs:        rt dl pthread
-  linuxPackages:    libcurl
   mingwLibs:        uuid wsock32 wininet version ole32 ws2_32 oleaut32 imm32 comdlg32 shlwapi rpcrt4 winmm
 
  END_JUCE_MODULE_DECLARATION
@@ -138,7 +137,22 @@
     If you disable this then https/ssl support will not be available on linux.
 */
 #ifndef JUCE_USE_CURL
- #define JUCE_USE_CURL 0
+ #if JUCE_LINUX
+  #define JUCE_USE_CURL 1
+ #else
+  #define JUCE_USE_CURL 0
+ #endif
+#endif
+
+/** Config: JUCE_LOAD_CURL_SYMBOLS_LAZILY
+    If enabled, JUCE will load libcurl lazily when required (for example, when WebInputStream
+    is used). Enabling this flag may also help with library dependency erros as linking
+    libcurl at compile-time may instruct the linker to hard depend on a specific version
+    of libcurl. It's also useful if you want to limit the amount of JUCE dependencies and
+    you are not using WebInputStream or the URL classes.
+*/
+#ifndef JUCE_LOAD_CURL_SYMBOLS_LAZILY
+ #define JUCE_LOAD_CURL_SYMBOLS_LAZILY 0
 #endif
 
 
@@ -250,6 +264,7 @@ namespace juce
 #include "text/juce_LocalisedStrings.h"
 #include "text/juce_Base64.h"
 #include "misc/juce_Result.h"
+#include "misc/juce_Uuid.h"
 #include "containers/juce_Variant.h"
 #include "containers/juce_NamedValueSet.h"
 #include "containers/juce_DynamicObject.h"
@@ -280,7 +295,6 @@ namespace juce
 #include "maths/juce_Expression.h"
 #include "maths/juce_Random.h"
 #include "misc/juce_RuntimePermissions.h"
-#include "misc/juce_Uuid.h"
 #include "misc/juce_WindowsRegistry.h"
 #include "threads/juce_ChildProcess.h"
 #include "threads/juce_DynamicLibrary.h"

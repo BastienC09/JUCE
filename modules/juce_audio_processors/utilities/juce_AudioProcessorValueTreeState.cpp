@@ -38,17 +38,19 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
                bool meta,
                bool automatable,
                bool discrete,
-               AudioProcessorParameter::Category category)
+               AudioProcessorParameter::Category category,
+               bool boolean)
         : AudioProcessorParameterWithID (parameterID, paramName, labelText, category),
           owner (s), valueToTextFunction (valueToText), textToValueFunction (textToValue),
           range (r), value (defaultVal), defaultValue (defaultVal),
           listenersNeedCalling (true),
           isMetaParam (meta),
           isAutomatableParam (automatable),
-          isDiscreteParam (discrete)
+          isDiscreteParam (discrete),
+          isBooleanParam (boolean)
     {
+        value = defaultValue;
         state.addListener (this);
-        needsUpdate.set (1);
     }
 
     ~Parameter()
@@ -66,10 +68,11 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
                                                                    : text.getFloatValue());
     }
 
-    String getText (float v, int length) const override
+    String getText (float normalisedValue, int /*length*/) const override
     {
-        return valueToTextFunction != nullptr ? valueToTextFunction (range.convertFrom0to1 (v))
-                                              : AudioProcessorParameter::getText (v, length);
+        auto v = range.convertFrom0to1 (normalisedValue);
+        return valueToTextFunction != nullptr ? valueToTextFunction (v)
+                                              : String (value, 2);
     }
 
     int getNumSteps() const override
@@ -91,7 +94,7 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
             listeners.call ([=] (AudioProcessorValueTreeState::Listener& l) { l.parameterChanged (paramID, value); });
             listenersNeedCalling = false;
 
-            needsUpdate.set (1);
+            needsUpdate = true;
         }
     }
 
@@ -117,12 +120,25 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
 
     void copyValueToValueTree()
     {
-        if (state.isValid())
-            state.setPropertyExcludingListener (this, owner.valuePropertyID, value, owner.undoManager);
+        if (auto* valueProperty = state.getPropertyPointer (owner.valuePropertyID))
+        {
+            if ((float) *valueProperty != value)
+            {
+                ScopedValueSetter<bool> svs (ignoreParameterChangedCallbacks, true);
+                state.setProperty (owner.valuePropertyID, value, owner.undoManager);
+            }
+        }
+        else
+        {
+            state.setProperty (owner.valuePropertyID, value, nullptr);
+        }
     }
 
     void valueTreePropertyChanged (ValueTree&, const Identifier& property) override
     {
+        if (ignoreParameterChangedCallbacks)
+            return;
+
         if (property == owner.valuePropertyID)
             updateFromValueTree();
     }
@@ -152,6 +168,7 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
     bool isMetaParameter() const override      { return isMetaParam; }
     bool isAutomatable() const override        { return isAutomatableParam; }
     bool isDiscrete() const override           { return isDiscreteParam; }
+    bool isBoolean() const override            { return isBooleanParam; }
 
     AudioProcessorValueTreeState& owner;
     ValueTree state;
@@ -160,9 +177,10 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
     std::function<float (const String&)> textToValueFunction;
     NormalisableRange<float> range;
     float value, defaultValue;
-    Atomic<int> needsUpdate;
+    std::atomic<bool> needsUpdate { true };
     bool listenersNeedCalling;
-    const bool isMetaParam, isAutomatableParam, isDiscreteParam;
+    const bool isMetaParam, isAutomatableParam, isDiscreteParam, isBooleanParam;
+    bool ignoreParameterChangedCallbacks = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Parameter)
 };
@@ -184,7 +202,8 @@ AudioProcessorParameterWithID* AudioProcessorValueTreeState::createAndAddParamet
                                                                                     bool isMetaParameter,
                                                                                     bool isAutomatableParameter,
                                                                                     bool isDiscreteParameter,
-                                                                                    AudioProcessorParameter::Category category)
+                                                                                    AudioProcessorParameter::Category category,
+                                                                                    bool isBooleanParameter)
 {
     // All parameters must be created before giving this manager a ValueTree state!
     jassert (! state.isValid());
@@ -192,34 +211,34 @@ AudioProcessorParameterWithID* AudioProcessorValueTreeState::createAndAddParamet
     Parameter* p = new Parameter (*this, paramID, paramName, labelText, r,
                                   defaultVal, valueToTextFunction, textToValueFunction,
                                   isMetaParameter, isAutomatableParameter,
-                                  isDiscreteParameter, category);
+                                  isDiscreteParameter, category, isBooleanParameter);
     processor.addParameter (p);
     return p;
 }
 
 void AudioProcessorValueTreeState::addParameterListener (StringRef paramID, Listener* listener)
 {
-    if (Parameter* p = Parameter::getParameterForID (processor, paramID))
+    if (auto* p = Parameter::getParameterForID (processor, paramID))
         p->listeners.add (listener);
 }
 
 void AudioProcessorValueTreeState::removeParameterListener (StringRef paramID, Listener* listener)
 {
-    if (Parameter* p = Parameter::getParameterForID (processor, paramID))
+    if (auto* p = Parameter::getParameterForID (processor, paramID))
         p->listeners.remove (listener);
 }
 
 Value AudioProcessorValueTreeState::getParameterAsValue (StringRef paramID) const
 {
-    if (Parameter* p = Parameter::getParameterForID (processor, paramID))
+    if (auto* p = Parameter::getParameterForID (processor, paramID))
         return p->state.getPropertyAsValue (valuePropertyID, undoManager);
 
-    return Value();
+    return {};
 }
 
 NormalisableRange<float> AudioProcessorValueTreeState::getParameterRange (StringRef paramID) const noexcept
 {
-    if (Parameter* p = Parameter::getParameterForID (processor, paramID))
+    if (auto* p = Parameter::getParameterForID (processor, paramID))
         return p->range;
 
     return NormalisableRange<float>();
@@ -232,7 +251,7 @@ AudioProcessorParameterWithID* AudioProcessorValueTreeState::getParameter (Strin
 
 float* AudioProcessorValueTreeState::getRawParameterValue (StringRef paramID) const noexcept
 {
-    if (Parameter* p = Parameter::getParameterForID (processor, paramID))
+    if (auto* p = Parameter::getParameterForID (processor, paramID))
         return &(p->value);
 
     return nullptr;
@@ -242,6 +261,8 @@ ValueTree AudioProcessorValueTreeState::copyState()
 {
     ScopedLock lock (valueTreeChanging);
 
+    flushParameterValuesToValueTree();
+
     return state.createCopy();
 }
 
@@ -250,6 +271,9 @@ void AudioProcessorValueTreeState::replaceState (const ValueTree& newState)
     ScopedLock lock (valueTreeChanging);
 
     state = newState;
+
+    if (undoManager != nullptr)
+        undoManager->clearUndoHistory();
 }
 
 ValueTree AudioProcessorValueTreeState::getOrCreateChildValueTree (const String& paramID)
@@ -259,8 +283,8 @@ ValueTree AudioProcessorValueTreeState::getOrCreateChildValueTree (const String&
     if (! v.isValid())
     {
         v = ValueTree (valueType);
-        v.setProperty (idPropertyID, paramID, undoManager);
-        state.appendChild (v, undoManager);
+        v.setProperty (idPropertyID, paramID, nullptr);
+        state.appendChild (v, nullptr);
     }
 
     return v;
@@ -312,14 +336,16 @@ bool AudioProcessorValueTreeState::flushParameterValuesToValueTree()
 {
     ScopedLock lock (valueTreeChanging);
 
-    auto anythingUpdated = false;
+    bool anythingUpdated = false;
 
     for (auto* ap : processor.getParameters())
     {
         jassert (dynamic_cast<Parameter*> (ap) != nullptr);
         auto* p = static_cast<Parameter*> (ap);
 
-        if (p->needsUpdate.compareAndSetBool (0, 1))
+        bool needsUpdateTestValue = true;
+
+        if (p->needsUpdate.compare_exchange_strong (needsUpdateTestValue, false))
         {
             p->copyValueToValueTree();
             anythingUpdated = true;
@@ -357,7 +383,7 @@ struct AttachedControlBase  : public AudioProcessorValueTreeState::Listener,
 
     void setNewUnnormalisedValue (float newUnnormalisedValue)
     {
-        if (AudioProcessorParameter* p = state.getParameter (paramID))
+        if (auto* p = state.getParameter (paramID))
         {
             const float newValue = state.getParameterRange (paramID)
                                         .convertTo0to1 (newUnnormalisedValue);
@@ -369,7 +395,7 @@ struct AttachedControlBase  : public AudioProcessorValueTreeState::Listener,
 
     void sendInitialUpdate()
     {
-        if (float* v = state.getRawParameterValue (paramID))
+        if (auto* v = state.getRawParameterValue (paramID))
             parameterChanged (paramID, *v);
     }
 
@@ -390,8 +416,13 @@ struct AttachedControlBase  : public AudioProcessorValueTreeState::Listener,
 
     void beginParameterChange()
     {
-        if (AudioProcessorParameter* p = state.getParameter (paramID))
+        if (auto* p = state.getParameter (paramID))
+        {
+            if (state.undoManager != nullptr)
+                state.undoManager->beginNewTransaction();
+
             p->beginChangeGesture();
+        }
     }
 
     void endParameterChange()
@@ -498,7 +529,7 @@ struct AudioProcessorValueTreeState::SliderAttachment::Pimpl  : private Attached
     {
         const ScopedLock selfCallbackLock (selfCallbackMutex);
 
-        if ((! ignoreCallbacks) && (! ModifierKeys::getCurrentModifiers().isRightButtonDown()))
+        if ((! ignoreCallbacks) && (! ModifierKeys::currentModifiers.isRightButtonDown()))
             setNewUnnormalisedValue ((float) s->getValue());
     }
 
@@ -540,21 +571,37 @@ struct AudioProcessorValueTreeState::ComboBoxAttachment::Pimpl  : private Attach
     {
         const ScopedLock selfCallbackLock (selfCallbackMutex);
 
+        if (state.getParameter (paramID) != nullptr)
         {
-            ScopedValueSetter<bool> svs (ignoreCallbacks, true);
-            combo.setSelectedItemIndex (roundToInt (newValue), sendNotificationSync);
+            auto normValue = state.getParameterRange (paramID)
+                                  .convertTo0to1 (newValue);
+            auto index = roundToInt (normValue * (combo.getNumItems() - 1));
+
+            if (index != combo.getSelectedItemIndex())
+            {
+                ScopedValueSetter<bool> svs (ignoreCallbacks, true);
+                combo.setSelectedItemIndex (index, sendNotificationSync);
+            }
         }
     }
 
-    void comboBoxChanged (ComboBox* comboBox) override
+    void comboBoxChanged (ComboBox*) override
     {
         const ScopedLock selfCallbackLock (selfCallbackMutex);
 
         if (! ignoreCallbacks)
         {
-            beginParameterChange();
-            setNewUnnormalisedValue ((float) comboBox->getSelectedId() - 1.0f);
-            endParameterChange();
+            if (auto* p = state.getParameter (paramID))
+            {
+                auto newValue = (float) combo.getSelectedItemIndex() / (combo.getNumItems() - 1);
+
+                if (p->getValue() != newValue)
+                {
+                    beginParameterChange();
+                    p->setValueNotifyingHost (newValue);
+                    endParameterChange();
+                }
+            }
         }
     }
 

@@ -63,7 +63,8 @@ class PIPCreatorWindowComponent    : public Component,
 public:
     PIPCreatorWindowComponent()
     {
-        setLookAndFeel (lf = new PIPCreatorLookAndFeel());
+        lf.reset (new PIPCreatorLookAndFeel());
+        setLookAndFeel (lf.get());
 
         addAndMakeVisible (propertyViewport);
         propertyViewport.setViewedComponent (&propertyGroup, false);
@@ -222,7 +223,7 @@ private:
             if (descriptionValue.get().toString().isNotEmpty())   section.add ("  description:      " + descriptionValue.get().toString());
 
             if (! section.isEmpty())
-                metadata.add (section.joinIntoString (getLineEnding()));
+                metadata.add (section.joinIntoString (getPreferredLinefeed()));
         }
 
         {
@@ -235,7 +236,7 @@ private:
             if (exportersString.isNotEmpty())                     section.add ("  exporters:        " + exportersString);
 
             if (! section.isEmpty())
-                metadata.add (section.joinIntoString (getLineEnding()));
+                metadata.add (section.joinIntoString (getPreferredLinefeed()));
         }
 
         {
@@ -245,7 +246,7 @@ private:
             if (definesValue.get().toString().isNotEmpty())       section.add ("  defines:          " + definesValue.get().toString());
 
             if (! section.isEmpty())
-                metadata.add (section.joinIntoString (getLineEnding()));
+                metadata.add (section.joinIntoString (getPreferredLinefeed()));
         }
 
         {
@@ -255,7 +256,7 @@ private:
             if (mainClassValue.get().toString().isNotEmpty())     section.add ("  mainClass:        " + mainClassValue.get().toString());
 
             if (! section.isEmpty())
-                metadata.add (section.joinIntoString (getLineEnding()));
+                metadata.add (section.joinIntoString (getPreferredLinefeed()));
         }
 
         {
@@ -264,10 +265,10 @@ private:
             if (useLocalCopyValue.get())                          section.add ("  useLocalCopy:     " + useLocalCopyValue.get().toString());
 
             if (! section.isEmpty())
-                metadata.add (section.joinIntoString (getLineEnding()));
+                metadata.add (section.joinIntoString (getPreferredLinefeed()));
         }
 
-        return metadata.joinIntoString (String (getLineEnding()) + getLineEnding());
+        return metadata.joinIntoString (String (getPreferredLinefeed()) + getPreferredLinefeed());
     }
 
     void createPIPFile (File fileToSave)
@@ -306,7 +307,7 @@ private:
     }
 
     //==============================================================================
-    ScopedPointer<LookAndFeel> lf;
+    std::unique_ptr<LookAndFeel> lf;
 
     Viewport propertyViewport;
     PropertyGroupComponent propertyGroup  { "PIP Creator", { getIcons().juceLogo, Colours::transparentBlack } };
@@ -319,9 +320,9 @@ private:
                      vendorValue        { pipTree, Ids::vendor,        nullptr },
                      websiteValue       { pipTree, Ids::website,       nullptr },
                      descriptionValue   { pipTree, Ids::description,   nullptr },
-                     dependenciesValue  { pipTree, Ids::dependencies_, nullptr, getModulesRequiredForComponent() },
+                     dependenciesValue  { pipTree, Ids::dependencies_, nullptr, getModulesRequiredForComponent(), "," },
                      exportersValue     { pipTree, Ids::exporters,     nullptr,
-                                          StringArray (ProjectExporter::getValueTreeNameForExporter (ProjectExporter::getCurrentPlatformExporterName()).toLowerCase()) },
+                                          StringArray (ProjectExporter::getValueTreeNameForExporter (ProjectExporter::getCurrentPlatformExporterName()).toLowerCase()), "," },
                      moduleFlagsValue   { pipTree, Ids::moduleFlags,   nullptr },
                      definesValue       { pipTree, Ids::defines,       nullptr },
                      typeValue          { pipTree, Ids::type,          nullptr, "Component" },

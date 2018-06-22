@@ -329,13 +329,6 @@ void ProjectExporter::createPropertyEditors (PropertyListBuilder& props)
 
 void ProjectExporter::createDependencyPathProperties (PropertyListBuilder& props)
 {
-    if (shouldBuildTargetType (ProjectType::Target::VST3PlugIn) || project.isVST3PluginHost())
-    {
-        if (dynamic_cast<DependencyPathValueSource*> (&getVST3PathValue().getValueSource()) != nullptr)
-            props.add (new DependencyPathPropertyComponent (project.getFile().getParentDirectory(), getVST3PathValue(), "VST3 SDK Folder"),
-                       "If you're building a VST3 plugin or host, this must be the folder containing the VST3 SDK. This can be an absolute path, or a path relative to the Projucer project file.");
-    }
-
     if (shouldBuildTargetType (ProjectType::Target::AAXPlugIn) && project.shouldBuildAAX())
     {
         if (dynamic_cast<DependencyPathValueSource*> (&getAAXPathValue().getValueSource()) != nullptr)
@@ -388,7 +381,8 @@ void ProjectExporter::addSettingsForProjectType (const ProjectType& type)
 
 void ProjectExporter::addVSTPathsIfPluginOrHost()
 {
-    if (shouldBuildTargetType (ProjectType::Target::VST3PlugIn) || project.isVST3PluginHost())
+    if (shouldBuildTargetType (ProjectType::Target::VST3PlugIn) || project.isVST3PluginHost()
+         || shouldBuildTargetType (ProjectType::Target::VSTPlugIn) || project.isVSTPluginHost())
         addVST3FolderToPath();
 }
 
@@ -400,12 +394,21 @@ void ProjectExporter::addCommonAudioPluginSettings()
     // Note: RTAS paths are platform-dependent, impl -> addPlatformSpecificSettingsForProjectType
  }
 
+RelativePath ProjectExporter::getInternalVST3SDKPath()
+{
+    return getModuleFolderRelativeToProject ("juce_audio_processors")
+                           .getChildFile ("format_types")
+                           .getChildFile ("VST3_SDK");
+}
+
 void ProjectExporter::addVST3FolderToPath()
 {
     auto vst3Folder = getVST3PathValue().toString();
 
     if (vst3Folder.isNotEmpty())
         addToExtraSearchPaths (RelativePath (vst3Folder, RelativePath::projectFolder), 0);
+    else
+        addToExtraSearchPaths (getInternalVST3SDKPath(), 0);
 }
 
 void ProjectExporter::addAAXFoldersToPath()
@@ -450,7 +453,8 @@ void ProjectExporter::addTargetSpecificPreprocessorDefs (StringPairArray& defs, 
         {"JucePlugin_Build_AUv3",       ProjectType::Target::AudioUnitv3PlugIn},
         {"JucePlugin_Build_RTAS",       ProjectType::Target::RTASPlugIn},
         {"JucePlugin_Build_AAX",        ProjectType::Target::AAXPlugIn},
-        {"JucePlugin_Build_Standalone", ProjectType::Target::StandalonePlugIn}
+        {"JucePlugin_Build_Standalone", ProjectType::Target::StandalonePlugIn},
+        {"JucePlugin_Build_Unity",      ProjectType::Target::UnityPlugIn}
     };
 
     if (targetType == ProjectType::Target::SharedCodeTarget)
@@ -786,21 +790,21 @@ Image ProjectExporter::getBestIconForSize (int size, bool returnNullIfNothingBig
 {
     Drawable* im = nullptr;
 
-    ScopedPointer<Drawable> im1 (getSmallIcon());
-    ScopedPointer<Drawable> im2 (getBigIcon());
+    std::unique_ptr<Drawable> im1 (getSmallIcon());
+    std::unique_ptr<Drawable> im2 (getBigIcon());
 
     if (im1 != nullptr && im2 != nullptr)
     {
         if (im1->getWidth() >= size && im2->getWidth() >= size)
-            im = im1->getWidth() < im2->getWidth() ? im1 : im2;
+            im = im1->getWidth() < im2->getWidth() ? im1.get() : im2.get();
         else if (im1->getWidth() >= size)
-            im = im1;
+            im = im1.get();
         else if (im2->getWidth() >= size)
-            im = im2;
+            im = im2.get();
     }
     else
     {
-        im = im1 != nullptr ? im1 : im2;
+        im = im1 != nullptr ? im1.get() : im2.get();
     }
 
     if (im == nullptr)
@@ -920,21 +924,21 @@ void ProjectExporter::BuildConfiguration::createPropertyEditors (PropertyListBui
         props.add (new TextPropertyComponent (configNameValue, "Name", 96, false),
                    "The name of this configuration.");
 
-    props.add (new ChoicePropertyComponent (isDebugValue, "Debug mode"),
+    props.add (new ChoicePropertyComponent (isDebugValue, "Debug Mode"),
                "If enabled, this means that the configuration should be built with debug symbols.");
 
-    props.add (new TextPropertyComponent (targetNameValue, "Binary name", 256, false),
+    props.add (new TextPropertyComponent (targetNameValue, "Binary Name", 256, false),
                "The filename to use for the destination binary executable file. If you don't add a suffix to this name, "
                "a suitable platform-specific suffix will be added automatically.");
 
-    props.add (new TextPropertyComponent (targetBinaryPathValue, "Binary location", 1024, false),
+    props.add (new TextPropertyComponent (targetBinaryPathValue, "Binary Location", 1024, false),
                "The folder in which the finished binary should be placed. Leave this blank to cause the binary to be placed "
                "in its default location in the build folder.");
 
-    props.addSearchPathProperty (headerSearchPathValue, "Header search paths", "Extra header search paths.");
-    props.addSearchPathProperty (librarySearchPathValue, "Extra library search paths", "Extra library search paths.");
+    props.addSearchPathProperty (headerSearchPathValue, "Header Search Paths", "Extra header search paths.");
+    props.addSearchPathProperty (librarySearchPathValue, "Extra Library Search Paths", "Extra library search paths.");
 
-    props.add (new TextPropertyComponent (ppDefinesValue, "Preprocessor definitions", 32768, true),
+    props.add (new TextPropertyComponent (ppDefinesValue, "Preprocessor Definitions", 32768, true),
                "Extra preprocessor definitions. Use the form \"NAME1=value NAME2=value\", using whitespace, commas, or "
                "new-lines to separate the items - to include a space or comma in a definition, precede it with a backslash.");
 

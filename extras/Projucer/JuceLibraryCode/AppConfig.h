@@ -31,7 +31,9 @@
 
 // BEGIN SECTION A
 
-#define JUCER_ENABLE_GPL_MODE 0
+#ifndef JUCER_ENABLE_GPL_MODE
+ #define JUCER_ENABLE_GPL_MODE 0
+#endif
 
 // END SECTION A
 
@@ -108,7 +110,7 @@
 #endif
 
 #ifndef    JUCE_ALLOW_STATIC_NULL_VARIABLES
- //#define JUCE_ALLOW_STATIC_NULL_VARIABLES 1
+ #define   JUCE_ALLOW_STATIC_NULL_VARIABLES 0
 #endif
 
 //==============================================================================

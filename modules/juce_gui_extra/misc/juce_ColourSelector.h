@@ -142,16 +142,12 @@ private:
     class ColourComponentSlider;
     class ColourSpaceMarker;
     class HueSelectorMarker;
-    friend class ColourSpaceView;
-    friend struct ContainerDeletePolicy<ColourSpaceView>;
-    friend class HueSelectorComp;
-    friend struct ContainerDeletePolicy<HueSelectorComp>;
 
     Colour colour;
     float h, s, v;
-    ScopedPointer<Slider> sliders[4];
-    ScopedPointer<ColourSpaceView> colourSpace;
-    ScopedPointer<HueSelectorComp> hueSelector;
+    std::unique_ptr<Slider> sliders[4];
+    std::unique_ptr<ColourSpaceView> colourSpace;
+    std::unique_ptr<HueSelectorComp> hueSelector;
     OwnedArray<SwatchComponent> swatchComponents;
     const int flags;
     int edgeGap;

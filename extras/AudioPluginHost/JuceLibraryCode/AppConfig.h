@@ -16,7 +16,9 @@
 //==============================================================================
 // [BEGIN_USER_CODE_SECTION]
 
-// (You can add your own code in this section, and the Projucer will not overwrite it)
+#ifndef JUCE_ANDROID
+ #define JUCE_MODAL_LOOPS_PERMITTED   (! JUCE_IOS)
+#endif
 
 // [END_USER_CODE_SECTION]
 
@@ -150,6 +152,10 @@
  #define   JUCE_PLUGINHOST_AU 1
 #endif
 
+#ifndef    JUCE_PLUGINHOST_LADSPA
+ #define   JUCE_PLUGINHOST_LADSPA 1
+#endif
+
 //==============================================================================
 // juce_audio_utils flags:
 
@@ -257,6 +263,10 @@
 
 #ifndef    JUCE_USE_CAMERA
  #define   JUCE_USE_CAMERA 0
+#endif
+
+#ifndef    JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME
+ //#define JUCE_SYNC_VIDEO_VOLUME_WITH_OS_MEDIA_VOLUME 1
 #endif
 //==============================================================================
 #ifndef    JUCE_STANDALONE_APPLICATION
