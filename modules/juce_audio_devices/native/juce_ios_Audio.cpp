@@ -279,7 +279,8 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         options |= AVAudioSessionCategoryOptionMixWithOthers; // Alternatively AVAudioSessionCategoryOptionDuckOthers
        #endif
 
-      options |=   AVAudioSessionCategoryOptionAllowBluetoothA2DP;
+      options |= AVAudioSessionCategoryOptionAllowBluetoothA2DP;
+      options |= AVAudioSessionCategoryOptionDefaultToSpeaker;
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
                                                              withOptions: options
