@@ -82,7 +82,7 @@ public:
         project.setFile (projectFile);
 
         OwnedArray<LibraryModule> modules;
-        project.getModules().createRequiredModules (modules);
+        project.getEnabledModules().createRequiredModules (modules);
 
         checkModuleValidity (modules);
 
@@ -115,13 +115,12 @@ public:
             }
 
             if (generatedCodeFolder.exists())
+            {
                 writeReadmeFile();
+                deleteUnwantedFilesIn (generatedCodeFolder);
+            }
         }
-
-        if (generatedCodeFolder.exists())
-            deleteUnwantedFilesIn (generatedCodeFolder);
-
-        if (errors.size() > 0)
+        else
         {
             project.setFile (oldFile);
             return Result::fail (errors[0]);
@@ -148,7 +147,7 @@ public:
     Result saveContentNeededForLiveBuild()
     {
         OwnedArray<LibraryModule> modules;
-        project.getModules().createRequiredModules (modules);
+        project.getEnabledModules().createRequiredModules (modules);
 
         checkModuleValidity (modules);
 
@@ -390,7 +389,7 @@ private:
                     return;
                 }
 
-                if (project.getModules().getExtraDependenciesNeeded (module->getID()).size() > 0)
+                if (project.getEnabledModules().getExtraDependenciesNeeded (module->getID()).size() > 0)
                 {
                     addError ("At least one of your modules has missing dependencies!\n"
                               "Please go to the settings page of the highlighted modules and add the required dependencies.");
@@ -561,6 +560,7 @@ private:
             << "namespace ProjectInfo" << newLine
             << "{" << newLine
             << "    const char* const  projectName    = " << CppTokeniserFunctions::addEscapeChars (project.getProjectNameString()).quoted() << ";" << newLine
+            << "    const char* const  companyName    = " << CppTokeniserFunctions::addEscapeChars (project.getCompanyNameString()).quoted() << ";" << newLine
             << "    const char* const  versionString  = " << CppTokeniserFunctions::addEscapeChars (project.getVersionString()).quoted() << ";" << newLine
             << "    const int          versionNumber  = " << project.getVersionAsHex() << ";" << newLine
             << "}" << newLine

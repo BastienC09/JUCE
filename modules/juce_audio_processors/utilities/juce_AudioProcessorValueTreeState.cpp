@@ -38,9 +38,9 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
                bool meta,
                bool automatable,
                bool discrete,
-               AudioProcessorParameter::Category category,
+               AudioProcessorParameter::Category paramCategory,
                bool boolean)
-        : AudioProcessorParameterWithID (parameterID, paramName, labelText, category),
+        : AudioProcessorParameterWithID (parameterID, paramName, labelText, paramCategory),
           owner (s), valueToTextFunction (valueToText), textToValueFunction (textToValue),
           range (r), value (defaultVal), defaultValue (defaultVal),
           listenersNeedCalling (true),
@@ -72,7 +72,7 @@ struct AudioProcessorValueTreeState::Parameter   : public AudioProcessorParamete
     {
         auto v = range.convertFrom0to1 (normalisedValue);
         return valueToTextFunction != nullptr ? valueToTextFunction (v)
-                                              : String (value, 2);
+                                              : String (v, 2);
     }
 
     int getNumSteps() const override
@@ -195,6 +195,25 @@ AudioProcessorValueTreeState::AudioProcessorValueTreeState (AudioProcessor& p, U
 
 AudioProcessorValueTreeState::~AudioProcessorValueTreeState() {}
 
+std::unique_ptr<AudioProcessorParameterWithID> AudioProcessorValueTreeState::createParameter (const String& paramID, const String& paramName,
+                                                                                              const String& labelText, NormalisableRange<float> r,
+                                                                                              float defaultVal, std::function<String (float)> valueToTextFunction,
+                                                                                              std::function<float (const String&)> textToValueFunction,
+                                                                                              bool isMetaParameter,
+                                                                                              bool isAutomatableParameter,
+                                                                                              bool isDiscreteParameter,
+                                                                                              AudioProcessorParameter::Category category,
+                                                                                              bool isBooleanParameter)
+{
+    // All parameters must be created before giving this manager a ValueTree state!
+    jassert (! state.isValid());
+
+    return std::unique_ptr<AudioProcessorParameterWithID> (new Parameter (*this, paramID, paramName, labelText, r,
+                                                                          defaultVal, valueToTextFunction, textToValueFunction,
+                                                                          isMetaParameter, isAutomatableParameter,
+                                                                          isDiscreteParameter, category, isBooleanParameter));
+}
+
 AudioProcessorParameterWithID* AudioProcessorValueTreeState::createAndAddParameter (const String& paramID, const String& paramName,
                                                                                     const String& labelText, NormalisableRange<float> r,
                                                                                     float defaultVal, std::function<String (float)> valueToTextFunction,
@@ -205,13 +224,10 @@ AudioProcessorParameterWithID* AudioProcessorValueTreeState::createAndAddParamet
                                                                                     AudioProcessorParameter::Category category,
                                                                                     bool isBooleanParameter)
 {
-    // All parameters must be created before giving this manager a ValueTree state!
-    jassert (! state.isValid());
-
-    Parameter* p = new Parameter (*this, paramID, paramName, labelText, r,
-                                  defaultVal, valueToTextFunction, textToValueFunction,
-                                  isMetaParameter, isAutomatableParameter,
-                                  isDiscreteParameter, category, isBooleanParameter);
+    auto* p = createParameter (paramID, paramName, labelText, r, defaultVal,
+                               valueToTextFunction, textToValueFunction,
+                               isMetaParameter, isAutomatableParameter, isDiscreteParameter,
+                               category, isBooleanParameter).release();
     processor.addParameter (p);
     return p;
 }
@@ -454,7 +470,7 @@ struct AudioProcessorValueTreeState::SliderAttachment::Pimpl  : private Attached
     {
         NormalisableRange<float> range (state.getParameterRange (paramID));
 
-        if (range.interval != 0 || range.skew != 0)
+        if (range.interval != 0.0f || range.skew != 1.0f)
         {
             slider.setRange (range.start, range.end, range.interval);
             slider.setSkewFactor (range.skew, range.symmetricSkew);

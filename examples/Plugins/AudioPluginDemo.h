@@ -35,6 +35,8 @@
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
  exporters:        xcode_mac, vs2017, linux_make, xcode_iphone, androidstudio
 
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
+
  type:             AudioProcessor
  mainClass:        JuceDemoPluginAudioProcessor
 
@@ -336,7 +338,8 @@ private:
     //==============================================================================
     /** This is the editor component that our filter will display. */
     class JuceDemoPluginAudioProcessorEditor  : public AudioProcessorEditor,
-                                                private Timer, private Value::Listener
+                                                private Timer,
+                                                private Value::Listener
     {
     public:
         JuceDemoPluginAudioProcessorEditor (JuceDemoPluginAudioProcessor& owner)
@@ -419,6 +422,17 @@ private:
         void hostMIDIControllerIsAvailable (bool controllerIsAvailable) override
         {
             midiKeyboard.setVisible (! controllerIsAvailable);
+        }
+
+        int getControlParameterIndex (Component& control) override
+        {
+            if (&control == &gainSlider)
+                return 0;
+
+            if (&control == &delaySlider)
+                return 1;
+
+            return -1;
         }
 
         void updateTrackProperties()
@@ -533,9 +547,10 @@ private:
         synth.renderNextBlock (buffer, midiMessages, 0, numSamples);
 
         // Apply our delay effect to the new output..
-        applyDelay (buffer, delayBuffer, gainParamValue);
+        applyDelay (buffer, delayBuffer, delayParamValue);
 
-        applyGain (buffer, delayBuffer, delayParamValue); // apply our gain-change to the outgoing data..
+        // Apply our gain change to the outgoing data..
+        applyGain (buffer, delayBuffer, gainParamValue);
 
         // Now ask the host for the current time so we can store it to be displayed later...
         updateCurrentTimeInfoFromHost();

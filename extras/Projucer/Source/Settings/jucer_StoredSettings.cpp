@@ -46,7 +46,11 @@ StoredSettings::StoredSettings()
       fallbackPaths ("FALLBACK_PATHS")
 {
     updateOldProjectSettingsFiles();
+
     reload();
+    changed (true);
+    flush();
+
     checkJUCEPaths();
 
     projectDefaults.addListener (this);
@@ -326,13 +330,13 @@ Value StoredSettings::getFallbackPathForOS (const Identifier& key, DependencyPat
         {
             if      (os == TargetOS::windows)  v = "C:\\SDKs\\PT_90_SDK";
             else if (os == TargetOS::osx)      v = "~/SDKs/PT_90_SDK";
-            else                               jassertfalse; // no RTAS on this OS!
+            else                               return {}; // no RTAS on this OS!
         }
         else if (key == Ids::aaxPath)
         {
             if      (os == TargetOS::windows)  v = "C:\\SDKs\\AAX";
             else if (os == TargetOS::osx)      v = "~/SDKs/AAX";
-            else                               jassertfalse; // no AAX on this OS!
+            else                               return {}; // no AAX on this OS!
         }
         else if (key == Ids::androidSDKPath)
         {
@@ -384,7 +388,7 @@ Value StoredSettings::getFallbackPathForOS (const Identifier& key, DependencyPat
             }
             else
             {
-                jassertfalse; // no Android Studio on this OS!
+                return {}; // no Android Studio on this OS!
             }
         }
     }

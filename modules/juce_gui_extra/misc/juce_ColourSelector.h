@@ -133,15 +133,14 @@ public:
         labelTextColourId               = 0x1007001     /**< the colour used for the labels next to the sliders. */
     };
 
+    //==============================================================================
+    // These need to be public otherwise the Projucer's live-build engine will complain
+    class ColourSpaceView;
+    class HueSelectorComp;
 
 private:
     //==============================================================================
-    class ColourSpaceView;
-    class HueSelectorComp;
     class SwatchComponent;
-    class ColourComponentSlider;
-    class ColourSpaceMarker;
-    class HueSelectorMarker;
 
     Colour colour;
     float h, s, v;

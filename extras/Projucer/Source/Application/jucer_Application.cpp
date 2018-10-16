@@ -83,14 +83,15 @@ void ProjucerApplication::initialise (const String& commandLine)
 
         initialiseBasics();
 
-        isRunningCommandLine = commandLine.isNotEmpty();
+        isRunningCommandLine = commandLine.isNotEmpty()
+                                && ! commandLine.startsWith ("-NSDocumentRevisionsDebugMode");
 
         licenseController.reset (new LicenseController);
         licenseController->addLicenseStatusChangedCallback (this);
 
         if (isRunningCommandLine)
         {
-            const int appReturnCode = performCommandLine (commandLine);
+            auto appReturnCode = performCommandLine (ArgumentList ("Projucer", commandLine));
 
             if (appReturnCode != commandLineNotPerformed)
             {
@@ -161,6 +162,9 @@ void ProjucerApplication::handleAsyncUpdate()
     if (licenseController != nullptr)
         licenseController->startWebviewIfNeeded();
 
+    rescanJUCEPathModules();
+    rescanUserPathModules();
+
    #if JUCE_MAC
     PopupMenu extraAppleMenuItems;
     createExtraAppleMenuItems (extraAppleMenuItems);
@@ -211,6 +215,7 @@ void ProjucerApplication::shutdown()
     aboutWindow.reset();
     pathsWindow.reset();
     editorColourSchemeWindow.reset();
+    pipCreatorWindow.reset();
 
     if (licenseController != nullptr)
     {
@@ -940,7 +945,7 @@ void ProjucerApplication::getCommandInfo (CommandID commandID, ApplicationComman
 
     case CommandIDs::newPIP:
         result.setInfo ("New PIP...", "Opens the PIP Creator utility for creating a new PIP", CommandCategories::general, 0);
-            result.defaultKeypresses.add (KeyPress ('p', ModifierKeys::commandModifier | ModifierKeys::shiftModifier, 0));
+        result.defaultKeypresses.add (KeyPress ('p', ModifierKeys::commandModifier | ModifierKeys::shiftModifier, 0));
         break;
 
     case CommandIDs::launchDemoRunner:
@@ -1411,6 +1416,37 @@ void ProjucerApplication::showSetJUCEPathAlert()
                                                                             settings->setDontAskAboutJUCEPathAgain();
                                                                     }));
 
+}
+
+void ProjucerApplication::rescanJUCEPathModules()
+{
+    File jucePath (getAppSettings().getStoredPath (Ids::defaultJuceModulePath).toString());
+
+    if (isRunningCommandLine)
+        jucePathModuleList.scanPaths ({ jucePath });
+    else
+        jucePathModuleList.scanPathsAsync ({ jucePath });
+}
+
+static Array<File> getSanitisedUserModulePaths()
+{
+    Array<File> paths;
+
+    for (auto p : StringArray::fromTokens (getAppSettings().getStoredPath (Ids::defaultUserModulePath).toString(), ";", {}))
+    {
+        p = p.replace ("~", File::getSpecialLocation (File::userHomeDirectory).getFullPathName());
+        paths.add (File::createFileWithoutCheckingPath (p.trim()));
+    }
+
+    return paths;
+}
+
+void ProjucerApplication::rescanUserPathModules()
+{
+    if (isRunningCommandLine)
+        userPathsModuleList.scanPaths (getSanitisedUserModulePaths());
+    else
+        userPathsModuleList.scanPathsAsync (getSanitisedUserModulePaths());
 }
 
 void ProjucerApplication::selectEditorColourSchemeWithName (const String& schemeName)
