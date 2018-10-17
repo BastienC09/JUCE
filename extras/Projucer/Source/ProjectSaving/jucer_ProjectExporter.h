@@ -303,7 +303,7 @@ public:
         bool next();
 
         BuildConfiguration& operator*() const       { return *config; }
-        BuildConfiguration* operator->() const      { return config; }
+        BuildConfiguration* operator->() const      { return config.get(); }
 
         BuildConfiguration::Ptr config;
         int index;
@@ -320,7 +320,7 @@ public:
         bool next();
 
         const BuildConfiguration& operator*() const       { return *config; }
-        const BuildConfiguration* operator->() const      { return config; }
+        const BuildConfiguration* operator->() const      { return config.get(); }
 
         BuildConfiguration::Ptr config;
         int index;
@@ -369,6 +369,7 @@ protected:
     const ProjectType& projectType;
     const String projectName;
     const File projectFolder;
+
     Value vst3Path, rtasPath, aaxPath; // these must be initialised in the specific exporter c'tors!
 
     ValueWithDefault targetLocationValue, extraCompilerFlagsValue, extraLinkerFlagsValue, externalLibrariesValue,

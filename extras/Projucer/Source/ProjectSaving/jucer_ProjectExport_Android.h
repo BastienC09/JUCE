@@ -93,13 +93,6 @@ public:
     }
 
     //==============================================================================
-    void initialiseDependencyPathValues() override
-    {
-        sdkPath.referTo  (Value (new DependencyPathValueSource (getSetting (Ids::androidSDKPath), Ids::androidSDKPath, TargetOS::getThisOS())));
-        ndkPath.referTo  (Value (new DependencyPathValueSource (getSetting (Ids::androidNDKPath), Ids::androidNDKPath, TargetOS::getThisOS())));
-    }
-
-    //==============================================================================
     ValueWithDefault androidJavaLibs, androidRepositories, androidDependencies, androidScreenOrientation, androidActivityClass,
                      androidActivitySubClassName, androidActivityBaseClassName, androidManifestCustomXmlElements, androidVersionCode,
                      androidMinimumSDK, androidTheme, androidSharedLibraries, androidStaticLibraries, androidExtraAssetsFolder,
@@ -355,7 +348,7 @@ protected:
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& v) const override
     {
-        return new AndroidBuildConfiguration (project, v, *this);
+        return *new AndroidBuildConfiguration (project, v, *this);
     }
 
 private:
@@ -823,8 +816,8 @@ private:
     {
         String props;
 
-        props << "ndk.dir=" << sanitisePath (ndkPath.toString()) << newLine
-              << "sdk.dir=" << sanitisePath (sdkPath.toString()) << newLine;
+        props << "ndk.dir=" << sanitisePath (getAppSettings().getStoredPath (Ids::androidNDKPath).toString()) << newLine
+              << "sdk.dir=" << sanitisePath (getAppSettings().getStoredPath (Ids::androidSDKPath).toString()) << newLine;
 
         return props;
     }
@@ -875,12 +868,6 @@ private:
 
         props.add (new TextPropertyComponent (androidVersionCode, "Android Version Code", 32, false),
                    "An integer value that represents the version of the application code, relative to other versions.");
-
-        props.add (new DependencyPathPropertyComponent (project.getFile().getParentDirectory(), sdkPath, "Android SDK Path"),
-                   "The path to the Android SDK folder on the target build machine");
-
-        props.add (new DependencyPathPropertyComponent (project.getFile().getParentDirectory(), ndkPath, "Android NDK Path"),
-                   "The path to the Android NDK folder on the target build machine");
 
         props.add (new TextPropertyComponent (androidMinimumSDK, "Minimum SDK version", 32, false),
                    "The number of the minimum version of the Android SDK that the app requires");
@@ -1417,12 +1404,17 @@ private:
             customStringsXmlContent << cfg.getCustomStringsXml();
             customStringsXmlContent << "\n</resources>";
 
-            std::unique_ptr<XmlElement> strings (XmlDocument::parse (customStringsXmlContent));
+            if (auto strings = parseXML (customStringsXmlContent))
+            {
+                String dir     = cfg.isDebug() ? "debug" : "release";
+                String subPath = "app/src/" + dir + "/res/values/string.xml";
 
-            String dir     = cfg.isDebug() ? "debug" : "release";
-            String subPath = "app/src/" + dir + "/res/values/string.xml";
-
-            writeXmlOrThrow (*strings, folder.getChildFile (subPath), "utf-8", 100, true);
+                writeXmlOrThrow (*strings, folder.getChildFile (subPath), "utf-8", 100, true);
+            }
+            else
+            {
+                jassertfalse; // needs handling?
+            }
         }
     }
 
@@ -1718,7 +1710,6 @@ private:
         auto* manifest = createManifestElement();
 
         createSupportsScreensElement (*manifest);
-        createUsesSdkElement         (*manifest);
         createPermissionElements     (*manifest);
         createOpenGlFeatureElement   (*manifest);
 
@@ -1766,13 +1757,6 @@ private:
         }
     }
 
-    void createUsesSdkElement (XmlElement& manifest) const
-    {
-        auto* sdk = getOrCreateChildWithName (manifest, "uses-sdk");
-        setAttributeIfNotPresent (*sdk, "android:minSdkVersion", androidMinimumSDK.get());
-        setAttributeIfNotPresent (*sdk, "android:targetSdkVersion", androidMinimumSDK.get());
-    }
-
     void createPermissionElements (XmlElement& manifest) const
     {
         auto permissions = getPermissionsRequired();
@@ -1788,7 +1772,7 @@ private:
 
     void createOpenGlFeatureElement (XmlElement& manifest) const
     {
-        if (project.getModules().isModuleEnabled ("juce_opengl"))
+        if (project.getEnabledModules().isModuleEnabled ("juce_opengl"))
         {
             XmlElement* glVersion = nullptr;
 
@@ -2015,7 +1999,6 @@ private:
     }
 
     //==============================================================================
-    Value sdkPath, ndkPath;
     const File AndroidExecutable;
 
     JUCE_DECLARE_NON_COPYABLE (AndroidProjectExporter)

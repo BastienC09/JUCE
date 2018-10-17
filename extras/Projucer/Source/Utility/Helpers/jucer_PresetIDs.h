@@ -125,7 +125,9 @@ namespace Ids
     DECLARE_ID (osxCompatibility);
     DECLARE_ID (osxArchitecture);
     DECLARE_ID (iosCompatibility);
+    DECLARE_ID (xcodeSubprojects);
     DECLARE_ID (extraFrameworks);
+    DECLARE_ID (frameworkSearchPaths);
     DECLARE_ID (extraCustomFrameworks);
     DECLARE_ID (embeddedFrameworks);
     DECLARE_ID (extraDLLs);
@@ -149,6 +151,7 @@ namespace Ids
     DECLARE_ID (postbuildCommand);
     DECLARE_ID (generateManifest);
     DECLARE_ID (useRuntimeLibDLL);
+    DECLARE_ID (multiProcessorCompilation);
     DECLARE_ID (enableIncrementalLinking);
     DECLARE_ID (bundleIdentifier);
     DECLARE_ID (aaxIdentifier);
@@ -320,6 +323,7 @@ namespace Ids
     DECLARE_ID (pluginVST3Category);
     DECLARE_ID (pluginAUExportPrefix);
     DECLARE_ID (pluginAUMainType);
+    DECLARE_ID (pluginAUIsSandboxSafe);
     DECLARE_ID (pluginRTASCategory);
     DECLARE_ID (pluginRTASDisableBypass);
     DECLARE_ID (pluginRTASDisableMultiMono);

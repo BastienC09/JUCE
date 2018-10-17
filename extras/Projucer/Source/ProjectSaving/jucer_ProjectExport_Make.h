@@ -78,7 +78,7 @@ protected:
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& tree) const override
     {
-        return new MakeBuildConfiguration (project, tree, *this);
+        return *new MakeBuildConfiguration (project, tree, *this);
     }
 
 public:
@@ -421,14 +421,6 @@ public:
         jassert (targets.size() > 0);
     }
 
-    //==============================================================================
-    void initialiseDependencyPathValues() override
-    {
-        vst3Path.referTo (Value (new DependencyPathValueSource (getSetting (Ids::vst3Folder),
-                                                                Ids::vst3Path,
-                                                                TargetOS::linux)));
-    }
-
 private:
     ValueWithDefault extraPkgConfigValue;
 
@@ -608,7 +600,7 @@ private:
     {
         static String guiExtrasModule ("juce_gui_extra");
 
-        return (project.getModules().isModuleEnabled (guiExtrasModule)
+        return (project.getEnabledModules().isModuleEnabled (guiExtrasModule)
                 && project.isConfigFlagEnabled ("JUCE_WEB_BROWSER", true));
     }
 
@@ -616,7 +608,7 @@ private:
     {
         static String juceCoreModule ("juce_core");
 
-        return (project.getModules().isModuleEnabled (juceCoreModule)
+        return (project.getEnabledModules().isModuleEnabled (juceCoreModule)
                 && project.isConfigFlagEnabled ("JUCE_LOAD_CURL_SYMBOLS_LAZILY", false));
     }
 

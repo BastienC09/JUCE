@@ -336,8 +336,7 @@ public:
 
     void updateConfig (bool updateOutputDevice, bool updateInputDevice, bool updateSampleRate, bool updateBufferSize)
     {
-        AudioDeviceManager::AudioDeviceSetup config;
-        setup.manager->getAudioDeviceSetup (config);
+        auto config = setup.manager->getAudioDeviceSetup();
         String error;
 
         if (updateOutputDevice || updateInputDevice)
@@ -775,9 +774,7 @@ public:
 
                 auto item = items[row];
                 bool enabled = false;
-
-                AudioDeviceManager::AudioDeviceSetup config;
-                setup.manager->getAudioDeviceSetup (config);
+                auto config = setup.manager->getAudioDeviceSetup();
 
                 if (setup.useStereoPairs)
                 {
@@ -874,8 +871,7 @@ public:
 
             if (isPositiveAndBelow (row, items.size()))
             {
-                AudioDeviceManager::AudioDeviceSetup config;
-                setup.manager->getAudioDeviceSetup (config);
+                auto config = setup.manager->getAudioDeviceSetup();
 
                 if (setup.useStereoPairs)
                 {

@@ -36,6 +36,28 @@
 #include "../utility/juce_IncludeSystemHeaders.h"
 #include <juce_core/juce_core.h>
 
+#if JucePlugin_VersionCode < 0x010000   // Major < 0
+
+ #if (JucePlugin_VersionCode & 0x00FF00) > (9 * 0x100) // check if Minor number exceeeds 9
+  JUCE_COMPILER_WARNING ("When version has 'major' = 0, VST2 has trouble displaying 'minor' exceeding 9")
+ #endif
+
+ #if (JucePlugin_VersionCode & 0xFF) > 9   // check if Bugfix number exceeeds 9
+  JUCE_COMPILER_WARNING ("When version has 'major' = 0, VST2 has trouble displaying 'bugfix' exceeding 9")
+ #endif
+
+#elif JucePlugin_VersionCode >= 0x650000   // Major >= 101
+
+ #if (JucePlugin_VersionCode & 0x00FF00) > (99 * 0x100) // check if Minor number exceeeds 99
+  JUCE_COMPILER_WARNING ("When version has 'major' > 100, VST2 has trouble displaying 'minor' exceeding 99")
+ #endif
+
+ #if (JucePlugin_VersionCode & 0xFF) > 99  // check if Bugfix number exceeeds 99
+  JUCE_COMPILER_WARNING ("When version has 'major' > 100, VST2 has trouble displaying 'bugfix' exceeding 99")
+ #endif
+
+#endif
+
 #ifdef PRAGMA_ALIGN_SUPPORTED
  #undef PRAGMA_ALIGN_SUPPORTED
  #define PRAGMA_ALIGN_SUPPORTED 1
@@ -647,10 +669,10 @@ public:
 
         if (hostCallback != nullptr)
         {
-            int32 flags = Vst2::kVstPpqPosValid | Vst2::kVstTempoValid
-                              | Vst2::kVstBarsValid | Vst2::kVstCyclePosValid
-                              | Vst2::kVstTimeSigValid | Vst2::kVstSmpteValid
-                              | Vst2::kVstClockValid;
+            int32 flags = Vst2::kVstPpqPosValid  | Vst2::kVstTempoValid
+                        | Vst2::kVstBarsValid    | Vst2::kVstCyclePosValid
+                        | Vst2::kVstTimeSigValid | Vst2::kVstSmpteValid
+                        | Vst2::kVstClockValid;
 
             auto result = hostCallback (&vstEffect, Vst2::audioMasterGetTime, 0, flags, 0, 0);
             ti = reinterpret_cast<Vst2::VstTimeInfo*> (result);
@@ -1092,10 +1114,6 @@ public:
             {
                 vstEffect.flags |= Vst2::effFlagsHasEditor;
                 editorComp.reset (new EditorCompWrapper (*this, *ed));
-
-               #if ! (JUCE_MAC || JUCE_IOS)
-                ed->setScaleFactor (editorScaleFactor);
-               #endif
             }
             else
             {
@@ -1216,7 +1234,8 @@ public:
     // chores when it changes or repaints.
     struct EditorCompWrapper  : public Component
     {
-        EditorCompWrapper (JuceVSTWrapper& w, AudioProcessorEditor& editor)  : wrapper (w)
+        EditorCompWrapper (JuceVSTWrapper& w, AudioProcessorEditor& editor)
+            : wrapper (w)
         {
             editor.setOpaque (true);
             editor.setVisible (true);
@@ -1249,10 +1268,15 @@ public:
         {
             auto b = getSizeToContainChild();
 
-            bounds.top     = 0;
-            bounds.left  = 0;
-            bounds.bottom     = (int16) b.getHeight();
-            bounds.right = (int16) b.getWidth();
+            bounds.top    = 0;
+            bounds.left   = 0;
+            bounds.bottom = (int16) b.getHeight();
+            bounds.right  = (int16) b.getWidth();
+
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            bounds.bottom = (int16) roundToInt (bounds.bottom * wrapper.editorScaleFactor);
+            bounds.right  = (int16) roundToInt (bounds.right  * wrapper.editorScaleFactor);
+           #endif
         }
 
         void attachToHost (VstOpCodeArguments args)
@@ -1263,6 +1287,14 @@ public:
            #if JUCE_WINDOWS
             addToDesktop (0, args.ptr);
             hostWindow = (HWND) args.ptr;
+
+            if (auto* ed = getEditorComp())
+               #if JUCE_WIN_PER_MONITOR_DPI_AWARE
+                if (auto* peer = ed->getPeer())
+                    wrapper.editorScaleFactor = (float) peer->getPlatformScaleFactor();
+               #else
+                ed->setScaleFactor (wrapper.editorScaleFactor);
+               #endif
            #elif JUCE_LINUX
             addToDesktop (0, args.ptr);
             hostWindow = (Window) args.ptr;
@@ -1302,17 +1334,33 @@ public:
             return dynamic_cast<AudioProcessorEditor*> (getChildComponent(0));
         }
 
+       #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+        void checkScaleFactorIsCorrect()
+        {
+            if (auto* peer = getEditorComp()->getPeer())
+            {
+                auto peerScaleFactor = (float) peer->getPlatformScaleFactor();
+
+                if (! approximatelyEqual (peerScaleFactor, wrapper.editorScaleFactor))
+                    wrapper.handleSetContentScaleFactor (peerScaleFactor);
+            }
+        }
+       #endif
+
         void resized() override
         {
             if (auto* ed = getEditorComp())
             {
+               #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+                checkScaleFactorIsCorrect();
+               #endif
+
                 ed->setTopLeftPosition (0, 0);
 
                 if (shouldResizeEditor)
                     ed->setBounds (ed->getLocalArea (this, getLocalBounds()));
 
-                if (! getHostType().isBitwigStudio())
-                    updateWindowSize (false);
+                updateWindowSize (false);
             }
 
            #if JUCE_MAC && ! JUCE_64BIT
@@ -1359,7 +1407,9 @@ public:
                     shouldResizeEditor = true;
                    #else
                     ignoreUnused (resizeEditor);
-                    XResizeWindow (display.display, (Window) getWindowHandle(), pos.getWidth(), pos.getHeight());
+                    XResizeWindow (display.display, (Window) getWindowHandle(),
+                                   static_cast<unsigned int> (roundToInt (pos.getWidth()  * wrapper.editorScaleFactor)),
+                                   static_cast<unsigned int> (roundToInt (pos.getHeight() * wrapper.editorScaleFactor)));
                    #endif
 
                    #if JUCE_MAC
@@ -1379,9 +1429,15 @@ public:
 
                 if (status == (pointer_sized_int) 1 || getHostType().isAbletonLive())
                 {
-                    isInSizeWindow = true;
-                    sizeWasSuccessful = (host (wrapper.getAEffect(), Vst2::audioMasterSizeWindow, newWidth, newHeight, 0, 0) != 0);
-                    isInSizeWindow = false;
+                   #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+                    newWidth  = roundToInt (newWidth  * wrapper.editorScaleFactor);
+                    newHeight = roundToInt (newHeight * wrapper.editorScaleFactor);
+                   #endif
+
+                    const ScopedValueSetter<bool> inSizeWindowSetter (isInSizeWindow, true);
+
+                    sizeWasSuccessful = (host (wrapper.getAEffect(), Vst2::audioMasterSizeWindow,
+                                               newWidth, newHeight, 0, 0) != 0);
                 }
             }
 
@@ -1493,38 +1549,6 @@ public:
 
     //==============================================================================
 private:
-    Vst2::audioMasterCallback hostCallback;
-    AudioProcessor* processor = {};
-    double sampleRate = 44100.0;
-    int32 blockSize = 1024;
-    Vst2::AEffect vstEffect;
-    juce::MemoryBlock chunkMemory;
-    juce::uint32 chunkMemoryTime = 0;
-    std::unique_ptr<EditorCompWrapper> editorComp;
-    Vst2::ERect editorBounds;
-    MidiBuffer midiEvents;
-    VSTMidiEventList outgoingEvents;
-    float editorScaleFactor = 1.0f;
-
-    LegacyAudioParametersWrapper juceParameters;
-
-    bool isProcessing = false, isBypassed = false, hasShutdown = false;
-    bool firstProcessCallback = true, shouldDeleteEditor = false;
-
-   #if JUCE_64BIT
-    bool useNSView = true;
-   #else
-    bool useNSView = false;
-   #endif
-
-    VstTempBuffers<float> floatTempBuffers;
-    VstTempBuffers<double> doubleTempBuffers;
-    int maxNumInChannels = 0, maxNumOutChannels = 0;
-
-    HeapBlock<Vst2::VstSpeakerArrangement> cachedInArrangement, cachedOutArrangement;
-
-    ThreadLocalValue<bool> inParameterChangedCallback;
-
     static JuceVSTWrapper* getWrapper (Vst2::AEffect* v) noexcept  { return static_cast<JuceVSTWrapper*> (v->object); }
 
     bool isProcessLevelOffline()
@@ -2009,8 +2033,8 @@ private:
         auto matches = [=](const char* s) { return strcmp (text, s) == 0; };
 
         if (matches ("receiveVstEvents")
-             || matches ("receiveVstMidiEvent")
-             || matches ("receiveVstMidiEvents"))
+         || matches ("receiveVstMidiEvent")
+         || matches ("receiveVstMidiEvents"))
         {
            #if JucePlugin_WantsMidiInput || JucePlugin_IsMidiEffect
             return 1;
@@ -2020,8 +2044,8 @@ private:
         }
 
         if (matches ("sendVstEvents")
-             || matches ("sendVstMidiEvent")
-             || matches ("sendVstMidiEvents"))
+         || matches ("sendVstMidiEvent")
+         || matches ("sendVstMidiEvents"))
         {
            #if JucePlugin_ProducesMidiOutput || JucePlugin_IsMidiEffect
             return 1;
@@ -2031,9 +2055,9 @@ private:
         }
 
         if (matches ("receiveVstTimeInfo")
-             || matches ("conformsToWindowRules")
-             || matches ("supportsViewDpiScaling")
-             || matches ("bypass"))
+         || matches ("conformsToWindowRules")
+         || matches ("supportsViewDpiScaling")
+         || matches ("bypass"))
         {
             return 1;
         }
@@ -2147,21 +2171,22 @@ private:
 
     pointer_sized_int handleSetContentScaleFactor (float scale)
     {
-        if (editorScaleFactor != scale)
+       #if ! JUCE_MAC
+        if (! approximatelyEqual (scale, editorScaleFactor))
         {
             editorScaleFactor = scale;
 
-           #if ! (JUCE_MAC || JUCE_IOS)
             if (editorComp != nullptr)
-            {
+               #if JUCE_WINDOWS && ! JUCE_WIN_PER_MONITOR_DPI_AWARE
                 if (auto* ed = editorComp->getEditorComp())
-                    ed->setScaleFactor (editorScaleFactor);
-
-                if (editorComp != nullptr)
-                    editorComp->updateWindowSize (true);
-            }
-           #endif
+                    ed->setScaleFactor (scale);
+               #else
+                editorComp->updateWindowSize (true);
+               #endif
         }
+       #else
+        ignoreUnused (scale);
+       #endif
 
         return 1;
     }
@@ -2206,6 +2231,42 @@ private:
     }
 
     //==============================================================================
+    Vst2::audioMasterCallback hostCallback;
+    AudioProcessor* processor = {};
+    double sampleRate = 44100.0;
+    int32 blockSize = 1024;
+    Vst2::AEffect vstEffect;
+    juce::MemoryBlock chunkMemory;
+    juce::uint32 chunkMemoryTime = 0;
+    std::unique_ptr<EditorCompWrapper> editorComp;
+    Vst2::ERect editorBounds;
+    MidiBuffer midiEvents;
+    VSTMidiEventList outgoingEvents;
+
+   #if ! JUCE_MAC
+    float editorScaleFactor = 1.0f;
+   #endif
+
+    LegacyAudioParametersWrapper juceParameters;
+
+    bool isProcessing = false, isBypassed = false, hasShutdown = false;
+    bool firstProcessCallback = true, shouldDeleteEditor = false;
+
+   #if JUCE_64BIT
+    bool useNSView = true;
+   #else
+    bool useNSView = false;
+   #endif
+
+    VstTempBuffers<float> floatTempBuffers;
+    VstTempBuffers<double> doubleTempBuffers;
+    int maxNumInChannels = 0, maxNumOutChannels = 0;
+
+    HeapBlock<Vst2::VstSpeakerArrangement> cachedInArrangement, cachedOutArrangement;
+
+    ThreadLocalValue<bool> inParameterChangedCallback;
+
+    //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JuceVSTWrapper)
 };
 
@@ -2229,7 +2290,17 @@ namespace
 
                     auto* processor = createPluginFilterOfType (AudioProcessor::wrapperType_VST);
                     auto* wrapper = new JuceVSTWrapper (audioMaster, processor);
-                    return wrapper->getAEffect();
+                    auto* aEffect = wrapper->getAEffect();
+
+                    if (auto* callbackHandler = dynamic_cast<VSTCallbackHandler*> (processor))
+                    {
+                        callbackHandler->handleVstHostCallbackAvailable ([audioMaster, aEffect](int32 opcode, int32 index, pointer_sized_int value, void* ptr, float opt)
+                        {
+                            return audioMaster (aEffect, opcode, index, value, ptr, opt);
+                        });
+                    }
+
+                    return aEffect;
                 }
             }
             catch (...)

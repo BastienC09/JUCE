@@ -32,18 +32,16 @@ namespace juce
     It must embed a WeakReference::Master object, which stores a shared pointer object, and must clear
     this master pointer in its destructor.
 
+    Note that WeakReference is not designed to be thread-safe, so if you're accessing it from
+    different threads, you'll need to do your own locking around all uses of the pointer and
+    the object it refers to.
+
     E.g.
     @code
     class MyObject
     {
     public:
-        MyObject()
-        {
-            // If you're planning on using your WeakReferences in a multi-threaded situation, you may choose
-            // to create a WeakReference to the object here in the constructor, which will pre-initialise the
-            // embedded object, avoiding an (extremely unlikely) race condition that could occur if multiple
-            // threads overlap while creating the first WeakReference to it.
-        }
+        MyObject() {}
 
         ~MyObject()
         {
@@ -63,12 +61,12 @@ namespace juce
 
     // Here's an example of using a pointer..
 
-    MyObject* n = new MyObject();
+    auto* n = new MyObject();
     WeakReference<MyObject> myObjectRef = n;
 
-    MyObject* pointer1 = myObjectRef;  // returns a valid pointer to 'n'
+    auto pointer1 = myObjectRef.get();  // returns a valid pointer to 'n'
     delete n;
-    MyObject* pointer2 = myObjectRef;  // returns a null pointer
+    auto pointer2 = myObjectRef.get();  // now returns nullptr
     @endcode
 
     @see WeakReference::Master
@@ -166,11 +164,11 @@ public:
         /** The first call to this method will create an internal object that is shared by all weak
             references to the object.
         */
-        SharedPointer* getSharedPointer (ObjectType* object)
+        SharedRef getSharedPointer (ObjectType* object)
         {
             if (sharedPointer == nullptr)
             {
-                sharedPointer = new SharedPointer (object);
+                sharedPointer = *new SharedPointer (object);
             }
             else
             {
@@ -206,9 +204,12 @@ public:
 private:
     SharedRef holder;
 
-    static inline SharedPointer* getRef (ObjectType* o)
+    static inline SharedRef getRef (ObjectType* o)
     {
-        return (o != nullptr) ? o->masterReference.getSharedPointer (o) : nullptr;
+        if (o != nullptr)
+            return o->masterReference.getSharedPointer (o);
+
+        return {};
     }
 };
 

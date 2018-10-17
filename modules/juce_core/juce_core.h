@@ -173,6 +173,15 @@
  #define JUCE_ALLOW_STATIC_NULL_VARIABLES 1
 #endif
 
+/** Config: JUCE_STRICT_REFCOUNTEDPOINTER
+    If enabled, this will make the ReferenceCountedObjectPtr class stricter about allowing
+    itself to be cast directly to a raw pointer. By default this is disabled, for compatibility
+    with old code, but if possible, you should always enable it to improve code safety!
+*/
+#ifndef JUCE_STRICT_REFCOUNTEDPOINTER
+ #define JUCE_STRICT_REFCOUNTEDPOINTER 0
+#endif
+
 
 #ifndef JUCE_STRING_UTF_TYPE
  #define JUCE_STRING_UTF_TYPE 8
@@ -246,6 +255,7 @@ namespace juce
 #include "maths/juce_StatisticsAccumulator.h"
 #include "containers/juce_ElementComparator.h"
 #include "containers/juce_ArrayAllocationBase.h"
+#include "containers/juce_ArrayBase.h"
 #include "containers/juce_Array.h"
 #include "containers/juce_LinkedListPointer.h"
 #include "containers/juce_ListenerList.h"
@@ -265,6 +275,7 @@ namespace juce
 #include "text/juce_Base64.h"
 #include "misc/juce_Result.h"
 #include "misc/juce_Uuid.h"
+#include "misc/juce_ConsoleApplication.h"
 #include "containers/juce_Variant.h"
 #include "containers/juce_NamedValueSet.h"
 #include "containers/juce_DynamicObject.h"
@@ -327,6 +338,7 @@ namespace juce
 #include "zip/juce_ZipFile.h"
 #include "containers/juce_PropertySet.h"
 #include "memory/juce_SharedResourcePointer.h"
+#include "memory/juce_HeavyweightLeakedObjectDetector.h"
 
 #if JUCE_CORE_INCLUDE_OBJC_HELPERS && (JUCE_MAC || JUCE_IOS)
  #include "native/juce_osx_ObjCHelpers.h"
