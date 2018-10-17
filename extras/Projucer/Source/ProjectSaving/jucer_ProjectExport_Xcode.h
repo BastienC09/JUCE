@@ -586,7 +586,7 @@ protected:
         void addXcodePluginInstallPathProperties (PropertyListBuilder& props)
         {
             auto isBuildingAnyPlugins = (project.shouldBuildVST() || project.shouldBuildVST3() || project.shouldBuildAU()
-                                         || project.shouldBuildRTAS() || project.shouldBuildAAX());
+                                         || project.shouldBuildRTAS() || project.shouldBuildAAX() || project.shouldBuildUnityPlugin());
 
             if (isBuildingAnyPlugins)
                 props.add (new ChoicePropertyComponent (pluginBinaryCopyStepEnabled, "Enable Plugin Copy Step"),
@@ -1164,9 +1164,6 @@ public:
 
                 if (sdkRoot.isNotEmpty())
                     s.set ("SDKROOT", sdkRoot);
-
-                s.set ("MACOSX_DEPLOYMENT_TARGET_ppc", "10.4");
-                s.set ("SDKROOT_ppc", "macosx10.5");
             }
 
             s.set ("GCC_VERSION", gccVersion);
@@ -1345,7 +1342,7 @@ public:
             if (! shouldCreatePList())
                 return;
 
-            std::unique_ptr<XmlElement> plist (XmlDocument::parse (owner.getPListToMergeString()));
+            auto plist = parseXML (owner.getPListToMergeString());
 
             if (plist == nullptr || ! plist->hasTagName ("plist"))
                 plist.reset (new XmlElement ("plist"));
@@ -3195,9 +3192,7 @@ private:
 
     bool xcschemeManagementPlistMatchesTargets (const File& plist) const
     {
-        std::unique_ptr<XmlElement> xml (XmlDocument::parse (plist));
-
-        if (xml != nullptr)
+        if (auto xml = parseXML (plist))
             if (auto* dict = xml->getChildByName ("dict"))
                 return parseNamesOfTargetsFromPlist (*dict) == getNamesOfTargets();
 
