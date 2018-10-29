@@ -262,7 +262,12 @@ static String getLocaleValue (CFStringRef key)
     return result;
 }
 
-String SystemStats::getUserLanguage()   { return getLocaleValue (kCFLocaleLanguageCode); }
+String SystemStats::getUserLanguage()
+  {
+    const String language (String::fromCFString ((CFStringRef)[[NSLocale preferredLanguages] objectAtIndex:0]));
+    return language.substring(0, 2);
+//    return getLocaleValue (kCFLocaleLanguageCode);
+  }
 String SystemStats::getUserRegion()     { return getLocaleValue (kCFLocaleCountryCode); }
 
 String SystemStats::getDisplayLanguage()
