@@ -36,7 +36,7 @@ struct SimpleDeviceManagerInputLevelMeter  : public Component,
         inputLevelGetter = manager.getInputLevelGetter();
     }
 
-    ~SimpleDeviceManagerInputLevelMeter()
+    ~SimpleDeviceManagerInputLevelMeter() override
     {
     }
 
@@ -60,8 +60,9 @@ struct SimpleDeviceManagerInputLevelMeter  : public Component,
 
     void paint (Graphics& g) override
     {
+        // (add a bit of a skew to make the level more obvious)
         getLookAndFeel().drawLevelMeter (g, getWidth(), getHeight(),
-                                         (float) std::exp (std::log (level) / 3.0)); // (add a bit of a skew to make the level more obvious)
+                                         (float) std::exp (std::log (level) / 3.0));
     }
 
     AudioDeviceManager& manager;
@@ -151,7 +152,7 @@ public:
         if (items.isEmpty())
         {
             g.setColour (Colours::grey);
-            g.setFont (13.0f);
+            g.setFont (0.5f * getRowHeight());
             g.drawText (noItemsMessage,
                         0, 0, getWidth(), getHeight() / 2,
                         Justification::centred, true);
@@ -223,7 +224,7 @@ public:
         setup.manager->addChangeListener (this);
     }
 
-    ~AudioDeviceSettingsPanel()
+    ~AudioDeviceSettingsPanel() override
     {
         setup.manager->removeChangeListener (this);
     }
@@ -265,6 +266,7 @@ public:
 
             if (outputChanList != nullptr)
             {
+                outputChanList->setRowHeight (jmin (22, h));
                 outputChanList->setBounds (r.removeFromTop (outputChanList->getBestHeight (maxListBoxHeight)));
                 outputChanLabel->setBounds (0, outputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
                 r.removeFromTop (space);
@@ -272,6 +274,7 @@ public:
 
             if (inputChanList != nullptr)
             {
+                inputChanList->setRowHeight (jmin (22, h));
                 inputChanList->setBounds (r.removeFromTop (inputChanList->getBestHeight (maxListBoxHeight)));
                 inputChanLabel->setBounds (0, inputChanList->getBounds().getCentreY() - h / 2, r.getX(), h);
                 r.removeFromTop (space);
@@ -828,7 +831,7 @@ public:
             if (items.isEmpty())
             {
                 g.setColour (Colours::grey);
-                g.setFont (13.0f);
+                g.setFont (0.5f * getRowHeight());
                 g.drawText (noItemsMessage,
                             0, 0, getWidth(), getHeight() / 2,
                             Justification::centred, true);
@@ -910,12 +913,7 @@ public:
                     }
                 }
 
-                auto error = setup.manager->setAudioDeviceSetup (config, true);
-
-                if (error.isNotEmpty())
-                {
-                    //xxx
-                }
+                setup.manager->setAudioDeviceSetup (config, true);
             }
         }
 
@@ -1070,8 +1068,9 @@ void AudioDeviceSelectorComponent::resized()
 
     if (midiInputsList != nullptr)
     {
-        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 4,
-                                                                                         getHeight() - r.getY() - space - itemHeight))));
+        midiInputsList->setRowHeight (jmin (22, itemHeight));
+        midiInputsList->setBounds (r.removeFromTop (midiInputsList->getBestHeight (jmin (itemHeight * 8,
+                                                                                 getHeight() - r.getY() - space - itemHeight))));
         r.removeFromTop (space);
     }
 

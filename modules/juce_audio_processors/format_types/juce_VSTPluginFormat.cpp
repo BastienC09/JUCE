@@ -41,6 +41,11 @@
 
 namespace Vst2
 {
+// If the following files cannot be found then you are probably trying to host
+// VST2 plug-ins. To do this you must have a VST2 SDK in your header search
+// paths or use the "VST (Legacy) SDK Folder" field in the Projucer. The VST2
+// SDK can be obtained from the vstsdk3610_11_06_2018_build_37 (or older) VST3
+// SDK or JUCE version 5.3.2.
 #include <pluginterfaces/vst2.x/aeffect.h>
 #include <pluginterfaces/vst2.x/aeffectx.h>
 }
@@ -856,7 +861,7 @@ struct VSTPluginInstance     : public AudioPluginInstance,
         {
         }
 
-        virtual float getValue() const override
+        float getValue() const override
         {
             if (auto* effect = pluginInstance.vstEffect)
             {
@@ -868,7 +873,7 @@ struct VSTPluginInstance     : public AudioPluginInstance,
             return 0.0f;
         }
 
-        virtual void setValue (float newValue) override
+        void setValue (float newValue) override
         {
             if (auto* effect = pluginInstance.vstEffect)
             {
@@ -3079,9 +3084,8 @@ private:
 
         pluginRespondsToDPIChanges = plugin.pluginCanDo ("supportsViewDpiScaling") > 0;
 
-        if (pluginRespondsToDPIChanges)
-            if (auto* peer = getTopLevelComponent()->getPeer())
-                setScaleFactorAndDispatchMessage (peer->getPlatformScaleFactor());
+        if (auto* peer = getTopLevelComponent()->getPeer())
+            setScaleFactorAndDispatchMessage (peer->getPlatformScaleFactor());
 
        #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
         std::unique_ptr<ScopedDPIAwarenessDisabler> dpiDisabler;

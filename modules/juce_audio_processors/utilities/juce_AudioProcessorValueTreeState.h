@@ -176,6 +176,26 @@ public:
                        std::make_unique<AudioParameterInt> ("b", "Parameter B", 0, 5, 2) })
         @endcode
 
+        To add parameters programatically you can use the iterator-based ParameterLayout
+        constructor:
+
+        @code
+        AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
+        {
+            std::vector<std::unique_ptr<AudioParameterInt>> params;
+
+            for (int i = 1; i < 9; ++i)
+                params.push_back (std::make_unique<AudioParameterInt> (String (i), String (i), 0, i, 0));
+
+            return { params.begin(), params.end() };
+        }
+
+        YourAudioProcessor()
+            : apvts (*this, &undoManager, "PARAMETERS", createParameterLayout())
+        {
+        }
+        @endcode
+
         @param processorToConnectTo     The Processor that will be managed by this object
         @param undoManagerToUse         An optional UndoManager to use; pass nullptr if no UndoManager is required
         @param valueTreeType            The identifier used to initialise the internal ValueTree
@@ -184,10 +204,11 @@ public:
     */
     AudioProcessorValueTreeState (AudioProcessor& processorToConnectTo,
                                   UndoManager* undoManagerToUse,
-                                  const juce::Identifier& valueTreeType,
+                                  const Identifier& valueTreeType,
                                   ParameterLayout parameterLayout);
 
     /** This constructor is discouraged and will be deprecated in a future version of JUCE!
+        Use the other constructor instead.
 
         Creates a state object for a given processor.
 
@@ -199,16 +220,19 @@ public:
     AudioProcessorValueTreeState (AudioProcessor& processorToConnectTo, UndoManager* undoManagerToUse);
 
     /** Destructor. */
-    ~AudioProcessorValueTreeState();
+    ~AudioProcessorValueTreeState() override;
 
     //==============================================================================
     /** This function is deprecated and will be removed in a future version of JUCE!
 
         Previous calls to
+
         @code
         createAndAddParameter (paramID1, paramName1, ...);
         @endcode
+
         can be replaced with
+
         @code
         using Parameter = AudioProcessorValueTreeState::Parameter;
         createAndAddParameter (std::make_unique<Parameter> (paramID1, paramName1, ...));
@@ -216,6 +240,7 @@ public:
 
         However, a much better approach is to use the AudioProcessorValueTreeState
         constructor directly
+
         @code
         using Parameter = AudioProcessorValueTreeState::Parameter;
         YourAudioProcessor()
@@ -223,6 +248,8 @@ public:
                                                           std::make_unique<Parameter> (paramID2, paramName2, ...),
                                                           ... })
         @endcode
+
+        @see AudioProcessorValueTreeState::AudioProcessorValueTreeState
 
         This function creates and returns a new parameter object for controlling a
         parameter with the given ID.
@@ -252,8 +279,11 @@ public:
     /** Returns a parameter by its ID string. */
     RangedAudioParameter* getParameter (StringRef parameterID) const noexcept;
 
-    /** Returns a pointer to a floating point representation of a particular
-        parameter which a realtime process can read to find out its current value.
+    /** Returns a pointer to a floating point representation of a particular parameter which a realtime
+        process can read to find out its current value.
+
+        Note that calling this method from within AudioProcessorValueTreeState::Listener::parameterChanged()
+        is not guaranteed to return an up-to-date value for the parameter.
     */
     float* getRawParameterValue (StringRef parameterID) const noexcept;
 
@@ -265,7 +295,12 @@ public:
     {
         virtual ~Listener() = default;
 
-        /** This callback method is called by the AudioProcessorValueTreeState when a parameter changes. */
+        /** This callback method is called by the AudioProcessorValueTreeState when a parameter changes.
+
+            Within this call, retrieving the value of the parameter that has changed via the getRawParameterValue()
+            or getParameter() methods is not guaranteed to return the up-to-date value. If you need this you should
+            instead use the newValue parameter.
+        */
         virtual void parameterChanged (const String& parameterID, float newValue) = 0;
     };
 
@@ -331,10 +366,13 @@ public:
         AudioProcessorValueTreeState functionality.
 
         Previous calls to
+
         @code
         createAndAddParameter (paramID1, paramName1, ...);
         @endcode
+
         can be replaced with
+
         @code
         using Parameter = AudioProcessorValueTreeState::Parameter;
         createAndAddParameter (std::make_unique<Parameter> (paramID1, paramName1, ...));
@@ -342,6 +380,7 @@ public:
 
         However, a much better approach is to use the AudioProcessorValueTreeState
         constructor directly
+
         @code
         using Parameter = AudioProcessorValueTreeState::Parameter;
         YourAudioProcessor()
@@ -366,6 +405,7 @@ public:
                    AudioProcessorParameter::Category category = AudioProcessorParameter::genericParameter,
                    bool isBoolean = false);
 
+        float getDefaultValue() const override;
         int getNumSteps() const override;
 
         bool isMetaParameter() const override;
@@ -374,6 +414,7 @@ public:
         bool isBoolean() const override;
 
     private:
+        const float unsnappedDefault;
         const bool metaParameter, automatable, discrete, boolean;
     };
 
@@ -485,12 +526,11 @@ private:
     friend struct ParameterAdapterTests;
    #endif
 
+    void addParameterAdapter (RangedAudioParameter&);
     ParameterAdapter* getParameterAdapter (StringRef) const;
 
-    ValueTree getChildValueTree (const String&) const;
-    ValueTree getOrCreateChildValueTree (const String&);
     bool flushParameterValuesToValueTree();
-    void setNewState (ParameterAdapter&);
+    void setNewState (ValueTree);
     void timerCallback() override;
 
     void valueTreePropertyChanged (ValueTree&, const Identifier&) override;
@@ -503,7 +543,12 @@ private:
 
     const Identifier valueType { "PARAM" }, valuePropertyID { "value" }, idPropertyID { "id" };
 
-    std::vector<std::unique_ptr<ParameterAdapter>> parameters;
+    struct StringRefLessThan final
+    {
+        bool operator() (StringRef a, StringRef b) const noexcept { return a.text.compare (b.text) < 0; }
+    };
+
+    std::map<StringRef, std::unique_ptr<ParameterAdapter>, StringRefLessThan> adapterTable;
 
     CriticalSection valueTreeChanging;
 

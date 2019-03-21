@@ -32,7 +32,7 @@
 
   ID:               juce_core
   vendor:           juce
-  version:          5.3.2
+  version:          5.4.3
   name:             JUCE core classes
   description:      The essential set of basic JUCE classes, as required by all the other JUCE modules. Includes text, container, memory, threading and i/o functionality.
   website:          http://www.juce.com/juce
@@ -269,6 +269,8 @@ namespace juce
 #include "text/juce_StringPool.h"
 #include "text/juce_Identifier.h"
 #include "text/juce_StringArray.h"
+#include "system/juce_SystemStats.h"
+#include "memory/juce_HeavyweightLeakedObjectDetector.h"
 #include "text/juce_StringPairArray.h"
 #include "text/juce_TextDiff.h"
 #include "text/juce_LocalisedStrings.h"
@@ -328,7 +330,6 @@ namespace juce
 #include "network/juce_URL.h"
 #include "network/juce_WebInputStream.h"
 #include "streams/juce_URLInputSource.h"
-#include "system/juce_SystemStats.h"
 #include "time/juce_PerformanceCounter.h"
 #include "unit_tests/juce_UnitTest.h"
 #include "xml/juce_XmlDocument.h"
@@ -338,7 +339,6 @@ namespace juce
 #include "zip/juce_ZipFile.h"
 #include "containers/juce_PropertySet.h"
 #include "memory/juce_SharedResourcePointer.h"
-#include "memory/juce_HeavyweightLeakedObjectDetector.h"
 
 #if JUCE_CORE_INCLUDE_OBJC_HELPERS && (JUCE_MAC || JUCE_IOS)
  #include "native/juce_osx_ObjCHelpers.h"

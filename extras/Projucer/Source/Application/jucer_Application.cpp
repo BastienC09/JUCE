@@ -174,7 +174,8 @@ void ProjucerApplication::handleAsyncUpdate()
     MenuBarModel::setMacMainMenu (menuModel.get(), &extraAppleMenuItems); //, "Open Recent");
    #endif
 
-    versionChecker.reset (new LatestVersionChecker());
+    if (getGlobalProperties().getValue (Ids::dontQueryForUpdate, {}).isEmpty())
+        LatestVersionCheckerAndUpdater::getInstance()->checkForNewVersion (false);
 
     if (licenseController != nullptr)
     {
@@ -201,6 +202,14 @@ void ProjucerApplication::initialiseWindows (const String& commandLine)
         showApplicationUsageDataAgreementPopup();
 }
 
+static void deleteTemporaryFiles()
+{
+    auto tempDirectory = File::getSpecialLocation (File::SpecialLocationType::tempDirectory).getChildFile ("PIPs");
+
+    if (tempDirectory.exists())
+        tempDirectory.deleteRecursively();
+}
+
 void ProjucerApplication::shutdown()
 {
     if (server != nullptr)
@@ -209,7 +218,6 @@ void ProjucerApplication::shutdown()
         Logger::writeToLog ("Server shutdown cleanly");
     }
 
-    versionChecker.reset();
     utf8Window.reset();
     svgPathWindow.reset();
     aboutWindow.reset();
@@ -430,6 +438,7 @@ void ProjucerApplication::createFileMenu (PopupMenu& menu)
     #if ! JUCE_MAC
       menu.addCommandItem (commandManager.get(), CommandIDs::showAboutWindow);
       menu.addCommandItem (commandManager.get(), CommandIDs::showAppUsageWindow);
+      menu.addCommandItem (commandManager.get(), CommandIDs::checkForNewVersion);
       menu.addCommandItem (commandManager.get(), CommandIDs::showGlobalPathsWindow);
       menu.addSeparator();
       menu.addCommandItem (commandManager.get(), StandardApplicationCommandIDs::quit);
@@ -581,6 +590,7 @@ void ProjucerApplication::createExtraAppleMenuItems (PopupMenu& menu)
 {
     menu.addCommandItem (commandManager.get(), CommandIDs::showAboutWindow);
     menu.addCommandItem (commandManager.get(), CommandIDs::showAppUsageWindow);
+    menu.addCommandItem (commandManager.get(), CommandIDs::checkForNewVersion);
     menu.addSeparator();
     menu.addCommandItem (commandManager.get(), CommandIDs::showGlobalPathsWindow);
 }
@@ -609,6 +619,18 @@ void ProjucerApplication::createExamplesPopupMenu (PopupMenu& menu) noexcept
         menu.addSeparator();
         menu.addCommandItem (commandManager.get(), CommandIDs::launchDemoRunner);
     }
+}
+
+//==========================================================================
+static File getJUCEExamplesDirectoryPathFromGlobal()
+{
+    auto globalPath = File::createFileWithoutCheckingPath (getAppSettings().getStoredPath (Ids::jucePath, TargetOS::getThisOS()).get().toString()
+                                                                           .replace ("~", File::getSpecialLocation (File::userHomeDirectory).getFullPathName()));
+
+    if (globalPath.exists())
+        return File (globalPath).getChildFile ("examples");
+
+    return {};
 }
 
 Array<File> ProjucerApplication::getSortedExampleDirectories() noexcept
@@ -668,19 +690,10 @@ bool ProjucerApplication::findWindowAndOpenPIP (const File& pip)
     return false;
 }
 
-File ProjucerApplication::getJUCEExamplesDirectoryPathFromGlobal() noexcept
-{
-    auto globalPath = getAppSettings().getStoredPath (Ids::jucePath).toString();
-
-    if (globalPath.isNotEmpty())
-        return File (globalPath).getChildFile ("examples");
-
-    return {};
-}
-
 void ProjucerApplication::findAndLaunchExample (int selectedIndex)
 {
     File example;
+
     for (auto& dir : getSortedExampleDirectories())
     {
         auto exampleFiles = getSortedExampleFilesInDirectory (dir);
@@ -705,115 +718,189 @@ void ProjucerApplication::findAndLaunchExample (int selectedIndex)
     Analytics::getInstance()->logEvent ("Example Opened", data, ProjucerAnalyticsEvent::exampleEvent);
 }
 
-File ProjucerApplication::findDemoRunnerExecutable() noexcept
+//==========================================================================
+static String getPlatformSpecificFileExtension()
 {
-    auto buildsPath = getJUCEExamplesDirectoryPathFromGlobal().getChildFile ("DemoRunner").getChildFile ("Builds");
+   #if JUCE_MAC
+    return ".app";
+   #elif JUCE_WINDOWS
+    return ".exe";
+   #elif JUCE_LINUX
+    return {};
+   #else
+    jassertfalse;
+    return {};
+   #endif
+}
 
-    if (! buildsPath.exists())
+static File getPlatformSpecificProjectFolder()
+{
+    auto examplesDir = getJUCEExamplesDirectoryPathFromGlobal();
+
+    if (examplesDir == File())
         return {};
 
-    String extension;
+    auto buildsFolder = examplesDir.getChildFile ("DemoRunner").getChildFile ("Builds");
 
    #if JUCE_MAC
-    auto osxBuildFolder = buildsPath.getChildFile ("MacOSX").getChildFile ("build");
-
-    auto demoRunnerExecutable = osxBuildFolder.getChildFile ("Release").getChildFile ("DemoRunner.app");
-    if (demoRunnerExecutable.exists())
-        return demoRunnerExecutable;
-
-    demoRunnerExecutable = osxBuildFolder.getChildFile ("Debug").getChildFile ("DemoRunner.app");
-    if (demoRunnerExecutable.exists())
-        return demoRunnerExecutable;
-
-    extension = ".app";
+    return buildsFolder.getChildFile ("MacOSX");
    #elif JUCE_WINDOWS
-    auto windowsBuildFolder = buildsPath.getChildFile ("VisualStudio2017").getChildFile ("x64");
-
-    auto demoRunnerExecutable = windowsBuildFolder.getChildFile ("Release").getChildFile ("App").getChildFile ("DemoRunner.exe");
-    if (demoRunnerExecutable.existsAsFile())
-        return demoRunnerExecutable;
-
-    demoRunnerExecutable = windowsBuildFolder.getChildFile ("Debug").getChildFile ("App").getChildFile ("DemoRunner.exe");
-    if (demoRunnerExecutable.existsAsFile())
-        return demoRunnerExecutable;
-
-    extension = ".exe";
+    return buildsFolder.getChildFile ("VisualStudio2017");
    #elif JUCE_LINUX
-    auto linuxBuildFolder = buildsPath.getChildFile ("LinuxMakefile").getChildFile ("build");
+    return buildsFolder.getChildFile ("LinuxMakefile");
+   #else
+    jassertfalse;
+    return {};
+   #endif
+}
 
-    auto demoRunnerExecutable = linuxBuildFolder.getChildFile ("DemoRunner");
+static File tryToFindDemoRunnerExecutableInBuilds()
+{
+    auto projectFolder = getPlatformSpecificProjectFolder();
+
+    if (projectFolder == File())
+        return {};
+
+   #if JUCE_MAC
+    projectFolder = projectFolder.getChildFile ("build");
+    auto demoRunnerExecutable = projectFolder.getChildFile ("Release").getChildFile ("DemoRunner.app");
+
+    if (demoRunnerExecutable.exists())
+        return demoRunnerExecutable;
+
+    demoRunnerExecutable = projectFolder.getChildFile ("Debug").getChildFile ("DemoRunner.app");
+
+    if (demoRunnerExecutable.exists())
+        return demoRunnerExecutable;
+   #elif JUCE_WINDOWS
+    projectFolder = projectFolder.getChildFile ("x64");
+    auto demoRunnerExecutable = projectFolder.getChildFile ("Release").getChildFile ("App").getChildFile ("DemoRunner.exe");
 
     if (demoRunnerExecutable.existsAsFile())
         return demoRunnerExecutable;
 
-    extension = {};
+    demoRunnerExecutable = projectFolder.getChildFile ("Debug").getChildFile ("App").getChildFile ("DemoRunner.exe");
+
+    if (demoRunnerExecutable.existsAsFile())
+        return demoRunnerExecutable;
+   #elif JUCE_LINUX
+    projectFolder = projectFolder.getChildFile ("LinuxMakefile").getChildFile ("build");
+    auto demoRunnerExecutable = projectFolder.getChildFile ("DemoRunner");
+
+    if (demoRunnerExecutable.existsAsFile())
+        return demoRunnerExecutable;
    #endif
-
-    auto juceDir = getAppSettings().getStoredPath (Ids::jucePath).toString();
-
-    if (juceDir.isNotEmpty())
-    {
-        auto precompiledFile = File (juceDir).getChildFile ("DemoRunner" + extension);
-
-       #if JUCE_MAC
-        if (precompiledFile.exists())
-       #else
-        if (precompiledFile.existsAsFile())
-       #endif
-            return precompiledFile;
-    }
-
 
     return {};
 }
 
-File ProjucerApplication::findDemoRunnerProject() noexcept
+static File tryToFindPrebuiltDemoRunnerExecutable()
 {
-    auto buildsPath = getJUCEExamplesDirectoryPathFromGlobal().getChildFile ("DemoRunner").getChildFile ("Builds");
-
-    if (! buildsPath.exists())
-        return {};
+    auto prebuiltFile = File (getAppSettings().getStoredPath (Ids::jucePath, TargetOS::getThisOS()).get().toString())
+                               .getChildFile ("DemoRunner" + getPlatformSpecificFileExtension());
 
    #if JUCE_MAC
-    auto file = buildsPath.getChildFile ("MacOSX").getChildFile ("DemoRunner.xcodeproj");
-
-    if (file.exists())
-        return file;
-   #elif JUCE_WINDOWS
-    auto file = buildsPath.getChildFile ("VisualStudio2017").getChildFile ("DemoRunner.sln");
-
-    if (file.existsAsFile())
-        return file;
-   #elif JUCE_LINUX
-    auto file = buildsPath.getChildFile ("LinuxMakeFile").getChildFile ("Makefile");
-
-    if (file.existsAsFile())
-        return file;
+    if (prebuiltFile.exists())
+   #else
+    if (prebuiltFile.existsAsFile())
    #endif
+        return prebuiltFile;
 
     return {};
+}
+
+void ProjucerApplication::checkIfGlobalJUCEPathHasChanged()
+{
+    auto globalJUCEPath = File (getAppSettings().getStoredPath (Ids::jucePath, TargetOS::getThisOS()).get());
+
+    if (lastJUCEPath != globalJUCEPath)
+    {
+        hasScannedForDemoRunnerProject = false;
+        hasScannedForDemoRunnerExecutable = false;
+
+        lastJUCEPath = globalJUCEPath;
+    }
+}
+
+File ProjucerApplication::tryToFindDemoRunnerExecutable()
+{
+    checkIfGlobalJUCEPathHasChanged();
+
+    if (hasScannedForDemoRunnerExecutable)
+        return lastDemoRunnerExectuableFile;
+
+    hasScannedForDemoRunnerExecutable = true;
+
+    auto demoRunnerExecutable = tryToFindDemoRunnerExecutableInBuilds();
+
+    if (demoRunnerExecutable == File())
+        demoRunnerExecutable = tryToFindPrebuiltDemoRunnerExecutable();
+
+    lastDemoRunnerExectuableFile = demoRunnerExecutable;
+
+    return demoRunnerExecutable;
+}
+
+File ProjucerApplication::tryToFindDemoRunnerProject()
+{
+    checkIfGlobalJUCEPathHasChanged();
+
+    if (hasScannedForDemoRunnerProject)
+        return lastDemoRunnerProjectFile;
+
+    hasScannedForDemoRunnerProject = true;
+
+    auto projectFolder = getPlatformSpecificProjectFolder();
+
+    if (projectFolder == File())
+    {
+        lastDemoRunnerProjectFile = File();
+        return {};
+    }
+
+   #if JUCE_MAC
+    auto demoRunnerProjectFile = projectFolder.getChildFile ("DemoRunner.xcodeproj");
+   #elif JUCE_WINDOWS
+    auto demoRunnerProjectFile = projectFolder.getChildFile ("DemoRunner.sln");
+   #elif JUCE_LINUX
+    auto demoRunnerProjectFile = projectFolder.getChildFile ("Makefile");
+   #endif
+
+   #if JUCE_MAC
+    if (! demoRunnerProjectFile.exists())
+   #else
+    if (! demoRunnerProjectFile.existsAsFile())
+   #endif
+        demoRunnerProjectFile = File();
+
+    lastDemoRunnerProjectFile = demoRunnerProjectFile;
+
+    return demoRunnerProjectFile;
 }
 
 void ProjucerApplication::launchDemoRunner()
 {
-    if (findDemoRunnerExecutable() != File())
-    {
-        bool succeeded = true;
+    auto demoRunnerFile = tryToFindDemoRunnerExecutable();
 
-        if (! findDemoRunnerExecutable().startAsProcess())
-        {
-            AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon, "Error", "There was an error opening the Demo Runner file.");
-            succeeded = false;
-        }
+    if (demoRunnerFile != File())
+    {
+        auto succeeded = demoRunnerFile.startAsProcess();
 
         StringPairArray data;
         data.set ("label", succeeded ? "Success" : "Failure");
 
         Analytics::getInstance()->logEvent ("Launch DemoRunner", data, ProjucerAnalyticsEvent::exampleEvent);
+
+        if (succeeded)
+            return;
     }
-    else if (findDemoRunnerProject() != File())
+
+    demoRunnerFile = tryToFindDemoRunnerProject();
+
+    if (demoRunnerFile != File())
     {
         auto& lf = Desktop::getInstance().getDefaultLookAndFeel();
+
         demoRunnerAlert.reset (lf.createAlertWindow ("Open Project",
                                                      "Couldn't find a compiled version of the Demo Runner."
                                                     #if JUCE_LINUX
@@ -825,7 +912,7 @@ void ProjucerApplication::launchDemoRunner()
                                                      AlertWindow::QuestionIcon, 2,
                                                      mainWindowList.getFrontmostWindow (false)));
 
-        demoRunnerAlert->enterModalState (true, ModalCallbackFunction::create ([this] (int retVal)
+        demoRunnerAlert->enterModalState (true, ModalCallbackFunction::create ([this, demoRunnerFile] (int retVal)
                                                 {
                                                     demoRunnerAlert.reset (nullptr);
 
@@ -836,25 +923,20 @@ void ProjucerApplication::launchDemoRunner()
 
                                                     if (retVal == 1)
                                                     {
-                                                        auto projectFile = findDemoRunnerProject();
-
                                                        #if JUCE_LINUX
-                                                        String command ("make -C " + projectFile.getParentDirectory().getFullPathName() + " CONFIG=Release -j3");
+                                                        String command ("make -C " + demoRunnerFile.getParentDirectory().getFullPathName() + " CONFIG=Release -j3");
 
                                                         if (! makeProcess.start (command))
                                                             AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon, "Error", "Error building Demo Runner.");
                                                        #else
-                                                        projectFile.startAsProcess();
+                                                        demoRunnerFile.startAsProcess();
                                                        #endif
                                                     }
                                                 }), false);
     }
-    else
-    {
-        jassertfalse;
-    }
 }
 
+//==========================================================================
 void ProjucerApplication::handleMainMenuCommand (int menuItemID)
 {
     if (menuItemID >= recentProjectsBaseID && menuItemID < (recentProjectsBaseID + 100))
@@ -920,6 +1002,7 @@ void ProjucerApplication::getAllCommands (Array <CommandID>& commands)
                               CommandIDs::showSVGPathTool,
                               CommandIDs::showAboutWindow,
                               CommandIDs::showAppUsageWindow,
+                              CommandIDs::checkForNewVersion,
                               CommandIDs::showForum,
                               CommandIDs::showAPIModules,
                               CommandIDs::showAPIClasses,
@@ -958,8 +1041,8 @@ void ProjucerApplication::getCommandInfo (CommandID commandID, ApplicationComman
         else
        #endif
         {
-        result.setInfo ("Launch Demo Runner", "Launches the JUCE demo runner application, or the project if it can't be found", CommandCategories::general, 0);
-        result.setActive (findDemoRunnerExecutable() != File() || findDemoRunnerProject() != File());
+            result.setInfo ("Launch Demo Runner", "Launches the JUCE demo runner application, or the project if it can't be found", CommandCategories::general, 0);
+            result.setActive (tryToFindDemoRunnerExecutable() != File() || tryToFindDemoRunnerProject() != File());
         }
         break;
 
@@ -1008,6 +1091,10 @@ void ProjucerApplication::getCommandInfo (CommandID commandID, ApplicationComman
 
     case CommandIDs::showAppUsageWindow:
         result.setInfo ("Application Usage Data", "Shows the application usage data agreement window", CommandCategories::general, 0);
+        break;
+
+    case CommandIDs::checkForNewVersion:
+        result.setInfo ("Check for New Version...", "Checks the web server for a new version of JUCE", CommandCategories::general, 0);
         break;
 
     case CommandIDs::showForum:
@@ -1069,6 +1156,7 @@ bool ProjucerApplication::perform (const InvocationInfo& info)
         case CommandIDs::showGlobalPathsWindow:     showPathsWindow (false); break;
         case CommandIDs::showAboutWindow:           showAboutWindow(); break;
         case CommandIDs::showAppUsageWindow:        showApplicationUsageDataAgreementPopup(); break;
+        case CommandIDs::checkForNewVersion:        LatestVersionCheckerAndUpdater::getInstance()->checkForNewVersion (true); break;
         case CommandIDs::showForum:                 launchForumBrowser(); break;
         case CommandIDs::showAPIModules:            launchModulesBrowser(); break;
         case CommandIDs::showAPIClasses:            launchClassesBrowser(); break;
@@ -1217,7 +1305,7 @@ void ProjucerApplication::showPathsWindow (bool highlightJUCEPath)
     else
         new FloatingToolWindow ("Global Paths", "pathsWindowPos",
                                 new GlobalPathsWindowComponent(), pathsWindow, false,
-                                600, 650, 600, 650, 600, 650);
+                                600, 700, 600, 700, 600, 700);
 
     if (highlightJUCEPath)
         if (auto* pathsComp = dynamic_cast<GlobalPathsWindowComponent*> (pathsWindow->getChildComponent (0)))
@@ -1353,14 +1441,6 @@ void ProjucerApplication::initCommandManager()
     registerGUIEditorCommands();
 }
 
-void ProjucerApplication::deleteTemporaryFiles() const noexcept
-{
-    auto tempDirectory = File::getSpecialLocation (File::SpecialLocationType::tempDirectory).getChildFile ("PIPs");
-
-    if (tempDirectory.exists())
-        tempDirectory.deleteRecursively();
-}
-
 void ProjucerApplication::setAnalyticsEnabled (bool enabled)
 {
     resetAnalytics();
@@ -1418,35 +1498,22 @@ void ProjucerApplication::showSetJUCEPathAlert()
 
 }
 
-void ProjucerApplication::rescanJUCEPathModules()
+void rescanModules (AvailableModuleList& list, const Array<File>& paths, bool async)
 {
-    File jucePath (getAppSettings().getStoredPath (Ids::defaultJuceModulePath).toString());
-
-    if (isRunningCommandLine)
-        jucePathModuleList.scanPaths ({ jucePath });
+    if (async)
+        list.scanPathsAsync (paths);
     else
-        jucePathModuleList.scanPathsAsync ({ jucePath });
+        list.scanPaths (paths);
 }
 
-static Array<File> getSanitisedUserModulePaths()
+void ProjucerApplication::rescanJUCEPathModules()
 {
-    Array<File> paths;
-
-    for (auto p : StringArray::fromTokens (getAppSettings().getStoredPath (Ids::defaultUserModulePath).toString(), ";", {}))
-    {
-        p = p.replace ("~", File::getSpecialLocation (File::userHomeDirectory).getFullPathName());
-        paths.add (File::createFileWithoutCheckingPath (p.trim()));
-    }
-
-    return paths;
+    rescanModules (jucePathModuleList, { getAppSettings().getStoredPath (Ids::defaultJuceModulePath, TargetOS::getThisOS()).get().toString() }, ! isRunningCommandLine);
 }
 
 void ProjucerApplication::rescanUserPathModules()
 {
-    if (isRunningCommandLine)
-        userPathsModuleList.scanPaths (getSanitisedUserModulePaths());
-    else
-        userPathsModuleList.scanPathsAsync (getSanitisedUserModulePaths());
+    rescanModules (userPathsModuleList, { getAppSettings().getStoredPath (Ids::defaultUserModulePath, TargetOS::getThisOS()).get().toString() }, ! isRunningCommandLine);
 }
 
 void ProjucerApplication::selectEditorColourSchemeWithName (const String& schemeName)
