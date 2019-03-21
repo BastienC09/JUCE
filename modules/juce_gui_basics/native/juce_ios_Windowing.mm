@@ -126,6 +126,15 @@ namespace juce
 
 
 //UVI
+- (BOOL)application:(UIApplication *)app
+            openURL:(NSURL *)url
+            options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options
+{
+  NSLog(@"Open URL: %@", url);
+  return YES;
+}
+
+//UVI
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)newDeviceToken
 {
   [[NSNotificationCenter defaultCenter]
