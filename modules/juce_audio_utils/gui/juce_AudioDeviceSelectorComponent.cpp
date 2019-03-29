@@ -216,7 +216,8 @@ public:
         {
             showAdvancedSettingsButton.reset (new TextButton (TRANS("Show advanced settings...")));
             addAndMakeVisible (showAdvancedSettingsButton.get());
-            showAdvancedSettingsButton->onClick = [this] { showAdvanced(); };
+            showAdvancedSettingsButton->setClickingTogglesState (true);
+            showAdvancedSettingsButton->onClick = [this] { toggleAdvancedSettings(); };
         }
 
         type.scanForDevices();
@@ -282,27 +283,37 @@ public:
 
             r.removeFromTop (space * 2);
 
-            if (showAdvancedSettingsButton != nullptr)
+            if (showAdvancedSettingsButton != nullptr
+                && sampleRateDropDown != nullptr && bufferSizeDropDown != nullptr)
             {
-                showAdvancedSettingsButton->setBounds (r.withHeight (h));
+                showAdvancedSettingsButton->setBounds (r.removeFromTop (h));
+                r.removeFromTop (space);
                 showAdvancedSettingsButton->changeWidthToFitText();
             }
 
-            const bool advancedSettingsVisible = showAdvancedSettingsButton == nullptr
-                                                    || ! showAdvancedSettingsButton->isVisible();
+            auto advancedSettingsVisible = showAdvancedSettingsButton == nullptr
+                                              || showAdvancedSettingsButton->getToggleState();
 
             if (sampleRateDropDown != nullptr)
             {
                 sampleRateDropDown->setVisible (advancedSettingsVisible);
-                sampleRateDropDown->setBounds (r.removeFromTop (h));
-                r.removeFromTop (space);
+
+                if (advancedSettingsVisible)
+                {
+                    sampleRateDropDown->setBounds (r.removeFromTop (h));
+                    r.removeFromTop (space);
+                }
             }
 
             if (bufferSizeDropDown != nullptr)
             {
                 bufferSizeDropDown->setVisible (advancedSettingsVisible);
-                bufferSizeDropDown->setBounds (r.removeFromTop (h));
-                r.removeFromTop (space);
+
+                if (advancedSettingsVisible)
+                {
+                    bufferSizeDropDown->setBounds (r.removeFromTop (h));
+                    r.removeFromTop (space);
+                }
             }
 
             r.removeFromTop (space);
@@ -406,9 +417,10 @@ public:
         return false;
     }
 
-    void showAdvanced()
+    void toggleAdvancedSettings()
     {
-        showAdvancedSettingsButton->setVisible (false);
+        showAdvancedSettingsButton->setButtonText ((showAdvancedSettingsButton->getToggleState() ? "Hide " : "Show ")
+                                                   + String ("advanced settings..."));
         resized();
     }
 
