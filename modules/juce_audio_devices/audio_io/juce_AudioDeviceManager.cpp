@@ -468,10 +468,13 @@ String AudioDeviceManager::setAudioDeviceSetup (const AudioDeviceSetup& newSetup
 {
     jassert (&newSetup != &currentSetup);    // this will have no effect
 
-    if (newSetup == currentSetup && currentAudioDevice != nullptr)
+    if (newSetup != currentSetup)
+        sendChangeMessage();
+    else if (currentAudioDevice != nullptr)
         return {};
 
-    if (getCurrentDeviceTypeObject() == nullptr)
+    if (getCurrentDeviceTypeObject() == nullptr
+        || (newSetup.inputDeviceName.isEmpty() && newSetup.outputDeviceName.isEmpty()))
     {
         deleteCurrentDevice();
 
@@ -482,9 +485,6 @@ String AudioDeviceManager::setAudioDeviceSetup (const AudioDeviceSetup& newSetup
     }
 
     stopDevice();
-
-    if (newSetup != currentSetup)
-        sendChangeMessage();
 
     String error;
 
