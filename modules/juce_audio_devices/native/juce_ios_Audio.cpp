@@ -281,7 +281,6 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
 
         if (category == AVAudioSessionCategoryPlayAndRecord)
             options |= (AVAudioSessionCategoryOptionDefaultToSpeaker
-                      | AVAudioSessionCategoryOptionAllowBluetooth
                       | AVAudioSessionCategoryOptionAllowBluetoothA2DP);
 
         JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance] setCategory: category
@@ -434,31 +433,6 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
         JUCE_IOS_AUDIO_LOG ("Actual buffer size: " << bufferSize);
     }
 
-    void setPreferedInputPort()
-    {
-      //-----------------------------------------------
-      // Get the set of available inputs. If there are no audio accessories attached, there will be
-      // only one available input -- the built in microphone.
-      NSArray* inputs = [[AVAudioSession sharedInstance] availableInputs];
-      // Locate the Port corresponding to the built-in microphone.
-      AVAudioSessionPortDescription* perferredInput = nil;
-      for (AVAudioSessionPortDescription* port in inputs)
-      {
-        JUCE_IOS_AUDIO_LOG("Check Input Port NAME:" << juce::String([port.portName UTF8String]) << " TYPE: " << juce::String([port.portType UTF8String]));
-        // ignore BluetoothHFP for input as it will be an 8k sample rate
-        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
-          continue;
-        else
-          perferredInput = port;
-      }
-    
-      JUCE_IOS_AUDIO_LOG("Use Input Port NAME:" << juce::String([perferredInput.portName UTF8String]) << " TYPE: " << juce::String([perferredInput.portType UTF8String]));
-      JUCE_NSERROR_CHECK ([[AVAudioSession sharedInstance]  setPreferredInput:perferredInput error:&error]);
-      
-      //-----------------------------------------------
-    }
-  
-  
     String open (const BigInteger& inputChannelsWanted,
                  const BigInteger& outputChannelsWanted,
                  double sampleRateWanted, int bufferSizeWanted)
@@ -482,8 +456,8 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
                             << ", targetBufferSize: " << targetBufferSize);
 
         setAudioSessionActive (true);
-		setAudioSessionCategory (AVAudioSessionCategoryPlayAndRecord);
-
+        setAudioSessionCategory (requestedInputChannels > 0 ? AVAudioSessionCategoryPlayAndRecord
+                                                            : AVAudioSessionCategoryPlayback);
         channelData.reconfigure (requestedInputChannels, requestedOutputChannels);
         updateHardwareInfo (true);
         setTargetSampleRateAndBufferSize();
@@ -1033,8 +1007,6 @@ struct iOSAudioIODevice::Pimpl      : public AudioPlayHead,
             AudioUnitSetProperty (audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &format, sizeof (format));
         }
 
-        setPreferedInputPort();
-      
         AudioUnitInitialize (audioUnit);
 
         {
@@ -1392,7 +1364,7 @@ void iOSAudioIODevice::stop()                                       { pimpl->sto
 void *iOSAudioIODevice::getNativeAudioEngine() {return pimpl->getNativeAudioEngine();} //UVI
 Array<double> iOSAudioIODevice::getAvailableSampleRates()           { return pimpl->availableSampleRates; }
 Array<int> iOSAudioIODevice::getAvailableBufferSizes()              { return pimpl->availableBufferSizes; }
-  
+
 bool iOSAudioIODevice::setAudioPreprocessingEnabled (bool enabled)  { return pimpl->setAudioPreprocessingEnabled (enabled); }
 
 bool iOSAudioIODevice::isPlaying()                                  { return pimpl->isRunning && pimpl->callback != nullptr; }
