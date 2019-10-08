@@ -271,7 +271,7 @@ namespace
         return statfs (f.getFullPathName().toUTF8(), &result) == 0;
     }
 
-   #if (JUCE_MAC && MAC_OS_X_VERSION_MIN_REQUIRED > MAC_OS_X_VERSION_10_5) || JUCE_IOS
+   #if JUCE_MAC || JUCE_IOS
     static int64 getCreationTime (const juce_statStruct& s) noexcept     { return (int64) s.st_birthtime; }
    #else
     static int64 getCreationTime (const juce_statStruct& s) noexcept     { return (int64) s.st_ctime; }
@@ -400,13 +400,19 @@ void File::getFileTimesInternal (int64& modificationTime, int64& accessTime, int
 
     if (juce_stat (fullPath, info))
     {
+      #if JUCE_MAC || (JUCE_IOS && __DARWIN_ONLY_64_BIT_INO_T)
+        modificationTime  = (int64) info.st_mtimespec.tv_sec * 1000 + info.st_mtimespec.tv_nsec / 1000000;
+        accessTime        = (int64) info.st_atimespec.tv_sec * 1000 + info.st_atimespec.tv_nsec / 1000000;
+        creationTime      = (int64) info.st_birthtimespec.tv_sec * 1000 + info.st_birthtimespec.tv_nsec / 1000000;
+      #else
         modificationTime  = (int64) info.st_mtime * 1000;
         accessTime        = (int64) info.st_atime * 1000;
-       #if (JUCE_MAC && MAC_OS_X_VERSION_MIN_REQUIRED > MAC_OS_X_VERSION_10_5) || JUCE_IOS
+       #if JUCE_IOS
         creationTime      = (int64) info.st_birthtime * 1000;
        #else
         creationTime      = (int64) info.st_ctime * 1000;
        #endif
+      #endif
     }
 }
 
@@ -416,11 +422,32 @@ bool File::setFileTimesInternal (int64 modificationTime, int64 accessTime, int64
 
     if ((modificationTime != 0 || accessTime != 0) && juce_stat (fullPath, info))
     {
+       #if JUCE_MAC || (JUCE_IOS && __DARWIN_ONLY_64_BIT_INO_T)
+        struct timeval times[2];
+
+        bool setModificationTime = (modificationTime != 0);
+        bool setAccessTime       = (accessTime != 0);
+
+        times[0].tv_sec  = setAccessTime ? static_cast<__darwin_time_t> (accessTime / 1000)
+                                         : info.st_atimespec.tv_sec;
+
+        times[0].tv_usec = setAccessTime ? static_cast<__darwin_suseconds_t> ((accessTime % 1000) * 1000)
+                                         : static_cast<__darwin_suseconds_t> (info.st_atimespec.tv_nsec / 1000);
+
+        times[1].tv_sec  = setModificationTime ? static_cast<__darwin_time_t> (modificationTime / 1000)
+                                               : info.st_mtimespec.tv_sec;
+
+        times[1].tv_usec = setModificationTime ? static_cast<__darwin_suseconds_t> ((modificationTime % 1000) * 1000)
+                                               : static_cast<__darwin_suseconds_t> (info.st_mtimespec.tv_nsec / 1000);
+
+        return utimes (fullPath.toUTF8(), times) == 0;
+       #else
         struct utimbuf times;
         times.actime  = accessTime != 0       ? static_cast<time_t> (accessTime / 1000)       : static_cast<time_t> (info.st_atime);
         times.modtime = modificationTime != 0 ? static_cast<time_t> (modificationTime / 1000) : static_cast<time_t> (info.st_mtime);
 
         return utime (fullPath.toUTF8(), &times) == 0;
+       #endif
     }
 
     return false;
@@ -887,8 +914,7 @@ void JUCE_API juce_threadEntryPoint (void*);
 extern JavaVM* androidJNIJavaVM;
 #endif
 
-extern "C" void* threadEntryProc (void*);
-extern "C" void* threadEntryProc (void* userData)
+static void* threadEntryProc (void* userData)
 {
     auto* myself = static_cast<Thread*> (userData);
 
@@ -1044,8 +1070,8 @@ void JUCE_CALLTYPE Thread::setCurrentThreadAffinityMask (uint32 affinityMask)
     CPU_ZERO (&affinity);
 
     for (int i = 0; i < 32; ++i)
-        if ((affinityMask & (1 << i)) != 0)
-            CPU_SET (i, &affinity);
+        if ((affinityMask & (uint32) (1 << i)) != 0)
+            CPU_SET ((size_t) i, &affinity);
 
    #if (! JUCE_ANDROID) && ((! JUCE_LINUX) || ((__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2004))
     pthread_setaffinity_np (pthread_self(), sizeof (cpu_set_t), &affinity);

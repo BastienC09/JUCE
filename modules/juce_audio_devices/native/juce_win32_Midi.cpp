@@ -1739,33 +1739,15 @@ private:
 
 //==============================================================================
 //==============================================================================
+extern RTL_OSVERSIONINFOW getWindowsVersionInfo();
+
 struct MidiService :  public DeletedAtShutdown
 {
     MidiService()
     {
       #if JUCE_USE_WINRT_MIDI
        #if ! JUCE_FORCE_WINRT_MIDI
-        auto windowsVersionInfo = []
-        {
-            RTL_OSVERSIONINFOW versionInfo = { 0 };
-
-            if (auto* mod = ::GetModuleHandleW (L"ntdll.dll"))
-            {
-                using RtlGetVersion = LONG (WINAPI*)(PRTL_OSVERSIONINFOW);
-
-                if (auto* rtlGetVersion = (RtlGetVersion) ::GetProcAddress (mod, "RtlGetVersion"))
-                {
-                    versionInfo.dwOSVersionInfoSize = sizeof (versionInfo);
-                    LONG STATUS_SUCCESS = 0;
-
-                    if (rtlGetVersion (&versionInfo) != STATUS_SUCCESS)
-                        versionInfo = { 0 };
-                }
-            }
-
-            return versionInfo;
-        }();
-
+        auto windowsVersionInfo = getWindowsVersionInfo();
         if (windowsVersionInfo.dwMajorVersion >= 10 && windowsVersionInfo.dwBuildNumber >= 17763)
        #endif
         {
@@ -1820,10 +1802,10 @@ MidiDeviceInfo MidiInput::getDefaultDevice()
     return MidiService::getService().getDefaultDevice (true);
 }
 
-MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallback* callback)
+std::unique_ptr<MidiInput> MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallback* callback)
 {
     if (deviceIdentifier.isEmpty() || callback == nullptr)
-        return nullptr;
+        return {};
 
     std::unique_ptr<MidiInput> in (new MidiInput ({}, deviceIdentifier));
     std::unique_ptr<MidiServiceType::InputWrapper> wrapper;
@@ -1834,13 +1816,13 @@ MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallb
     }
     catch (std::runtime_error&)
     {
-        return nullptr;
+        return {};
     }
 
     in->setName (wrapper->getDeviceName());
     in->internal = wrapper.release();
 
-    return in.release();
+    return in;
 }
 
 StringArray MidiInput::getDevices()
@@ -1858,7 +1840,7 @@ int MidiInput::getDefaultDeviceIndex()
     return findDefaultDeviceIndex (getAvailableDevices(), getDefaultDevice());
 }
 
-MidiInput* MidiInput::openDevice (int index, MidiInputCallback* callback)
+std::unique_ptr<MidiInput> MidiInput::openDevice (int index, MidiInputCallback* callback)
 {
     return openDevice (getAvailableDevices()[index].identifier, callback);
 }
@@ -1887,10 +1869,10 @@ MidiDeviceInfo MidiOutput::getDefaultDevice()
     return MidiService::getService().getDefaultDevice (false);
 }
 
-MidiOutput* MidiOutput::openDevice (const String& deviceIdentifier)
+std::unique_ptr<MidiOutput> MidiOutput::openDevice (const String& deviceIdentifier)
 {
     if (deviceIdentifier.isEmpty())
-        return nullptr;
+        return {};
 
     std::unique_ptr<MidiServiceType::OutputWrapper> wrapper;
 
@@ -1900,7 +1882,7 @@ MidiOutput* MidiOutput::openDevice (const String& deviceIdentifier)
     }
     catch (std::runtime_error&)
     {
-        return nullptr;
+        return {};
     }
 
     std::unique_ptr<MidiOutput> out;
@@ -1908,7 +1890,7 @@ MidiOutput* MidiOutput::openDevice (const String& deviceIdentifier)
 
     out->internal = wrapper.release();
 
-    return out.release();
+    return out;
 }
 
 StringArray MidiOutput::getDevices()
@@ -1926,7 +1908,7 @@ int MidiOutput::getDefaultDeviceIndex()
     return findDefaultDeviceIndex (getAvailableDevices(), getDefaultDevice());
 }
 
-MidiOutput* MidiOutput::openDevice (int index)
+std::unique_ptr<MidiOutput> MidiOutput::openDevice (int index)
 {
     return openDevice (getAvailableDevices()[index].identifier);
 }

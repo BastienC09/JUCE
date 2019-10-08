@@ -90,7 +90,7 @@ public:
 
     void updateDevices()
     {
-      items = MidiInput::getDevices();
+      items = MidiInput::getAvailableDevices();
       items.removeString(juce::JUCEApplication::getInstance()->getApplicationName());
     }
 
@@ -108,13 +108,14 @@ public:
                                .withMultipliedAlpha (0.3f));
 
             auto item = items[row];
-            bool enabled = deviceManager.isMidiInputEnabled (item);
+            bool enabled = deviceManager.isMidiInputDeviceEnabled (item.identifier);
 
             auto x = getTickX();
             auto tickW = height * 0.75f;
 
             getLookAndFeel().drawTickBox (g, *this, x - tickW, (height - tickW) / 2, tickW, tickW,
                                           enabled, true, true, false);
+    
           g.setFont (height * 0.6f);
           TextLayout layout;
           juce::AttributedString astr;
@@ -123,7 +124,6 @@ public:
           astr.setColour(findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
           layout.createLayout(astr, width - x - 2);
           layout.draw(g, Rectangle<float>( x, 0, width - x - 2, height));
-
         }
     }
 
@@ -172,14 +172,14 @@ private:
     //==============================================================================
     AudioDeviceManager& deviceManager;
     const String noItemsMessage;
-    StringArray items;
+    Array<MidiDeviceInfo> items;
 
     void flipEnablement (const int row)
     {
         if (isPositiveAndBelow (row, items.size()))
         {
-            auto item = items[row];
-            deviceManager.setMidiInputEnabled (item, ! deviceManager.isMidiInputEnabled (item));
+            auto identifier = items[row].identifier;
+            deviceManager.setMidiInputDeviceEnabled (identifier, ! deviceManager.isMidiInputDeviceEnabled (identifier));
         }
     }
 
@@ -681,7 +681,7 @@ private:
         else
         {
             sampleRateDropDown->clear();
-            sampleRateDropDown->onChange = {};
+            sampleRateDropDown->onChange = nullptr;
         }
 
         for (auto rate : currentDevice->getAvailableSampleRates())
@@ -707,7 +707,7 @@ private:
         else
         {
             bufferSizeDropDown->clear();
-            bufferSizeDropDown->onChange = {};
+            bufferSizeDropDown->onChange = nullptr;
         }
 
         auto currentRate = currentDevice->getCurrentSampleRate();
@@ -1121,12 +1121,12 @@ void AudioDeviceSelectorComponent::updateDeviceType()
 
 void AudioDeviceSelectorComponent::updateMidiOutput()
 {
-    auto midiDeviceName = midiOutputSelector->getText();
+    auto selectedId = midiOutputSelector->getSelectedId();
 
-    if (midiDeviceName == getNoDeviceString())
-        midiDeviceName = {};
-
-    deviceManager.setDefaultMidiOutput (midiDeviceName);
+    if (selectedId == -1)
+        deviceManager.setDefaultMidiOutputDevice ({});
+    else
+        deviceManager.setDefaultMidiOutputDevice (currentMidiOutputs[selectedId - 1].identifier);
 }
 
 void AudioDeviceSelectorComponent::changeListenerCallback (ChangeBroadcaster*)
@@ -1174,23 +1174,23 @@ void AudioDeviceSelectorComponent::updateAllControls()
     {
         midiOutputSelector->clear();
 
-        auto midiOuts = MidiOutput::getDevices();
+        currentMidiOutputs = MidiOutput::getAvailableDevices();
 
         midiOutputSelector->addItem (getNoDeviceString(), -1);
         midiOutputSelector->addSeparator();
 
-        for (int i = 0; i < midiOuts.size(); ++i)
+        auto defaultOutputIdentifier = deviceManager.getDefaultMidiOutputIdentifier();
+        int i = 0;
+        for (auto& out : currentMidiOutputs)
         {
-          if (juce::JUCEApplication::getInstance()->getApplicationName() != midiOuts[i])
-            midiOutputSelector->addItem (midiOuts[i], i + 1);
+            if (juce::JUCEApplication::getInstance()->getApplicationName() != out.name)
+                midiOutputSelector->addItem (out.name, i + 1);
+
+            if (defaultOutputIdentifier.isNotEmpty() && out.identifier == defaultOutputIdentifier)
+                midiOutputSelector->setSelectedId (i + 1);
+
+            ++i;
         }
-
-        int current = -1;
-
-        if (deviceManager.getDefaultMidiOutput() != nullptr)
-            current = 1 + midiOuts.indexOf (deviceManager.getDefaultMidiOutputName());
-
-        midiOutputSelector->setSelectedId (current, dontSendNotification);
     }
 
     resized();

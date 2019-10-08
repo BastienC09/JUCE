@@ -314,8 +314,8 @@ private:
     {
         static const char* filesToKeep[] = { ".svn", ".cvs", "CMakeLists.txt" };
 
-        for (int i = 0; i < numElementsInArray (filesToKeep); ++i)
-            if (filename == filesToKeep[i])
+        for (auto* f : filesToKeep)
+            if (filename == f)
                 return true;
 
         return false;
@@ -323,16 +323,18 @@ private:
 
     void writeMainProjectFile()
     {
-        std::unique_ptr<XmlElement> xml (project.getProjectRoot().createXml());
-        jassert (xml != nullptr);
-
-        if (xml != nullptr)
+        if (auto xml = project.getProjectRoot().createXml())
         {
-            MemoryOutputStream mo;
-            mo.setNewLineString (projectLineFeed);
+            XmlElement::TextFormat format;
+            format.newLineChars = projectLineFeed.toRawUTF8();
 
-            xml->writeToStream (mo, String());
+            MemoryOutputStream mo (8192);
+            xml->writeTo (mo, format);
             replaceFileIfDifferent (projectFile, mo);
+        }
+        else
+        {
+            jassertfalse;
         }
     }
 
@@ -340,8 +342,8 @@ private:
     {
         int longest = 0;
 
-        for (int i = modules.size(); --i >= 0;)
-            longest = jmax (longest, modules.getUnchecked(i)->getID().length());
+        for (auto& m : modules)
+            longest = jmax (longest, m->getID().length());
 
         return longest;
     }
@@ -352,8 +354,8 @@ private:
     {
         StringArray userContent;
         bool foundCodeSection = false;
-
         auto lines = StringArray::fromLines (getAppConfigFile().loadFileAsString());
+
         for (int i = 0; i < lines.size(); ++i)
         {
             if (lines[i].contains ("[BEGIN_USER_CODE_SECTION]"))
@@ -385,7 +387,7 @@ private:
             return;
         }
 
-        for (LibraryModule** moduleIter = modules.begin(); moduleIter != modules.end(); ++moduleIter)
+        for (auto moduleIter = modules.begin(); moduleIter != modules.end(); ++moduleIter)
         {
             if (auto* module = *moduleIter)
             {
@@ -456,25 +458,23 @@ private:
             << newLine
             << "// END SECTION A" << newLine
             << newLine
-            << "#define JUCE_USE_DARK_SPLASH_SCREEN "  << (project.getSplashScreenColourString() == "Dark" ? "1" : "0") << newLine;
+            << "#define JUCE_USE_DARK_SPLASH_SCREEN "  << (project.getSplashScreenColourString() == "Dark" ? "1" : "0") << newLine
+            << newLine
+            << "#define JUCE_PROJUCER_VERSION 0x" << String::toHexString (ProjectInfo::versionNumber) << newLine;
 
         out << newLine
             << "//==============================================================================" << newLine;
 
         auto longestName = findLongestModuleName (modules);
 
-        for (int k = 0; k < modules.size(); ++k)
-        {
-            auto* m = modules.getUnchecked(k);
+        for (auto& m : modules)
             out << "#define JUCE_MODULE_AVAILABLE_" << m->getID()
                 << String::repeatedString (" ", longestName + 5 - m->getID().length()) << " 1" << newLine;
-        }
 
         out << newLine << "#define JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED 1" << newLine;
 
-        for (int j = 0; j < modules.size(); ++j)
+        for (auto& m : modules)
         {
-            auto* m = modules.getUnchecked(j);
             OwnedArray<Project::ConfigFlag> flags;
             m->getConfigFlags (project, flags);
 
@@ -558,6 +558,15 @@ private:
             out << CodeHelpers::createIncludeStatement (project.getBinaryDataHeaderFile(), appConfigFile) << newLine;
 
         out << newLine
+            << "#if defined (JUCE_PROJUCER_VERSION) && JUCE_PROJUCER_VERSION < JUCE_VERSION" << newLine
+            << " /** If you've hit this error then the version of the Projucer that was used to generate this project is" << newLine
+            << "     older than the version of the JUCE modules being included. To fix this error, re-save your project" << newLine
+            << "     using the latest version of the Projucer or, if you aren't using the Projucer to manage your project," << newLine
+            << "     remove the JUCE_PROJUCER_VERSION define from the AppConfig.h file." << newLine
+            << " */" << newLine
+            << " #error \"This project was last saved using an outdated version of the Projucer! Re-save this project with the latest version to fix this error.\"" << newLine
+            << "#endif" << newLine
+            << newLine
             << "#if ! DONT_SET_USING_JUCE_NAMESPACE" << newLine
             << " // If your code uses a lot of JUCE classes, then this will obviously save you" << newLine
             << " // a lot of typing, but can be disabled by setting DONT_SET_USING_JUCE_NAMESPACE." << newLine
@@ -619,6 +628,7 @@ private:
         if (resourceFile.getNumFiles() > 0)
         {
             auto dataNamespace = project.getBinaryDataNamespaceString().trim();
+
             if (dataNamespace.isEmpty())
                 dataNamespace = "BinaryData";
 
@@ -627,6 +637,7 @@ private:
             Array<File> binaryDataFiles;
 
             auto maxSize = project.getMaxBinaryFileSize();
+
             if (maxSize <= 0)
                 maxSize = 10 * 1024 * 1024;
 
@@ -636,10 +647,8 @@ private:
             {
                 hasBinaryData = true;
 
-                for (int i = 0; i < binaryDataFiles.size(); ++i)
+                for (auto& f : binaryDataFiles)
                 {
-                    auto& f = binaryDataFiles.getReference(i);
-
                     filesCreated.add (f);
                     generatedFilesGroup.addFileRetainingSortOrder (f, ! f.hasFileExtension (".h"));
                 }

@@ -195,7 +195,7 @@ public:
     /** Tries to draw a text string inside a given space.
 
         This does its best to make the given text readable within the specified rectangle,
-        so it useful for labelling things.
+        so it's useful for labelling things.
 
         If the text is too big, it'll be squashed horizontally or broken over multiple lines
         if the maximumLinesToUse value allows this. If the text just won't fit into the space,
@@ -220,7 +220,7 @@ public:
     /** Tries to draw a text string inside a given space.
 
         This does its best to make the given text readable within the specified rectangle,
-        so it useful for labelling things.
+        so it's useful for labelling things.
 
         If the text is too big, it'll be squashed horizontally or broken over multiple lines
         if the maximumLinesToUse value allows this. If the text just won't fit into the space,
@@ -741,8 +741,8 @@ public:
 
 private:
     //==============================================================================
+    std::unique_ptr<LowLevelGraphicsContext> contextHolder;
     LowLevelGraphicsContext& context;
-    std::unique_ptr<LowLevelGraphicsContext> contextToDelete;
 
     bool saveStatePending = false;
     void saveStateIfPending();

@@ -60,7 +60,16 @@ namespace CoreMidiHelpers
         SInt32 objectID = 0;
 
         if (CHECK_ERROR (MIDIObjectGetIntegerProperty (entity, kMIDIPropertyUniqueID, &objectID)))
+        {
             info.identifier = String (objectID);
+        }
+        else
+        {
+            ScopedCFString str;
+
+            if (CHECK_ERROR (MIDIObjectGetStringProperty (entity, kMIDIPropertyUniqueID, &str.cfString)))
+                info.identifier = String::fromCFString (str.cfString);
+        }
 
         return info;
     }
@@ -211,9 +220,22 @@ namespace CoreMidiHelpers
 
         if (! hasEnabledNetworkSession)
         {
-            MIDINetworkSession* session = [MIDINetworkSession defaultSession];
-            session.enabled = YES;
-            session.connectionPolicy = MIDINetworkConnectionPolicy_Anyone;
+            auto iOSVersion = nsStringToJuce ([[UIDevice currentDevice] systemVersion]);
+            auto majorVersion = StringArray::fromTokens (iOSVersion, ".", {})[0].getIntValue();
+
+            if (majorVersion == 13)
+            {
+                // From the Xcode 11 release notes known issues:
+                // Attempting to create an MIDINetworkSession in a simulated device running
+                // iOS 13 won’t succeed. (54484923)
+                jassertfalse;
+            }
+            else
+            {
+                MIDINetworkSession* session = [MIDINetworkSession defaultSession];
+                session.enabled = YES;
+                session.connectionPolicy = MIDINetworkConnectionPolicy_Anyone;
+            }
 
             hasEnabledNetworkSession = true;
         }
@@ -375,7 +397,7 @@ namespace CoreMidiHelpers
     static Array<MIDIEndpointRef> getEndpoints (bool isInput)
     {
         Array<MIDIEndpointRef> endpoints;
-        auto numDevices = (isInput ? MIDIGetNumberOfSources() : MIDIGetNumberOfDevices());
+        auto numDevices = (isInput ? MIDIGetNumberOfSources() : MIDIGetNumberOfDestinations());
 
         for (ItemCount i = 0; i < numDevices; ++i)
             endpoints.add (isInput ? MIDIGetSource (i) : MIDIGetDestination (i));
@@ -395,7 +417,7 @@ MidiDeviceInfo MidiInput::getDefaultDevice()
     return getAvailableDevices().getFirst();
 }
 
-MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallback* callback)
+std::unique_ptr<MidiInput> MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallback* callback)
 {
     if (deviceIdentifier.isEmpty())
         return nullptr;
@@ -415,13 +437,13 @@ MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallb
                 if (CHECK_ERROR (MIDIObjectGetStringProperty (endpoint, kMIDIPropertyName, &cfName.cfString)))
                 {
                     MIDIPortRef port;
-                    std::unique_ptr<MidiPortAndCallback> mpc (new MidiPortAndCallback (*callback));
+                    auto mpc = std::make_unique<MidiPortAndCallback> (*callback);
 
                     if (CHECK_ERROR (MIDIInputPortCreate (client, cfName.cfString, midiInputProc, mpc.get(), &port)))
                     {
                         if (CHECK_ERROR (MIDIPortConnectSource (port, endpoint, nullptr)))
                         {
-                            mpc->portAndEndpoint.reset (new MidiPortAndEndpoint (port, endpoint));
+                            mpc->portAndEndpoint = std::make_unique<MidiPortAndEndpoint> (port, endpoint);
 
                             std::unique_ptr<MidiInput> midiInput (new MidiInput (endpointInfo.name, endpointInfo.identifier));
 
@@ -431,7 +453,7 @@ MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallb
                             const ScopedLock sl (callbackLock);
                             activeCallbacks.add (mpc.release());
 
-                            return midiInput.release();
+                            return midiInput;
                         }
                         else
                         {
@@ -443,10 +465,10 @@ MidiInput* MidiInput::openDevice (const String& deviceIdentifier, MidiInputCallb
         }
     }
 
-    return nullptr;
+    return {};
 }
 
-MidiInput* MidiInput::createNewDevice (const String& deviceName, MidiInputCallback* callback)
+std::unique_ptr<MidiInput> MidiInput::createNewDevice (const String& deviceName, MidiInputCallback* callback)
 {
     using namespace CoreMidiHelpers;
     jassert (callback != nullptr);
@@ -477,7 +499,7 @@ MidiInput* MidiInput::createNewDevice (const String& deviceName, MidiInputCallba
 
             if (CHECK_ERROR (MIDIObjectSetIntegerProperty (endpoint, kMIDIPropertyUniqueID, (SInt32) deviceIdentifier)))
             {
-                mpc->portAndEndpoint.reset (new MidiPortAndEndpoint (0, endpoint));
+                mpc->portAndEndpoint = std::make_unique<MidiPortAndEndpoint> (0, endpoint);
 
                 std::unique_ptr<MidiInput> midiInput (new MidiInput (deviceName, String (deviceIdentifier)));
 
@@ -487,12 +509,12 @@ MidiInput* MidiInput::createNewDevice (const String& deviceName, MidiInputCallba
                 const ScopedLock sl (callbackLock);
                 activeCallbacks.add (mpc.release());
 
-                return midiInput.release();
+                return midiInput;
             }
         }
     }
 
-    return nullptr;
+    return {};
 }
 
 StringArray MidiInput::getDevices()
@@ -510,7 +532,7 @@ int MidiInput::getDefaultDeviceIndex()
     return 0;
 }
 
-MidiInput* MidiInput::openDevice (int index, MidiInputCallback* callback)
+std::unique_ptr<MidiInput> MidiInput::openDevice (int index, MidiInputCallback* callback)
 {
     return openDevice (getAvailableDevices()[index].identifier, callback);
 }
@@ -548,7 +570,7 @@ MidiDeviceInfo MidiOutput::getDefaultDevice()
     return getAvailableDevices().getFirst();
 }
 
-MidiOutput* MidiOutput::openDevice (const String& deviceIdentifier)
+std::unique_ptr<MidiOutput> MidiOutput::openDevice (const String& deviceIdentifier)
 {
     if (deviceIdentifier.isEmpty())
         return nullptr;
@@ -574,17 +596,17 @@ MidiOutput* MidiOutput::openDevice (const String& deviceIdentifier)
                         std::unique_ptr<MidiOutput> midiOutput (new MidiOutput (endpointInfo.name, endpointInfo.identifier));
                         midiOutput->internal = new MidiPortAndEndpoint (port, endpoint);
 
-                        return midiOutput.release();
+                        return midiOutput;
                     }
                 }
             }
         }
     }
 
-    return nullptr;
+    return {};
 }
 
-MidiOutput* MidiOutput::createNewDevice (const String& deviceName)
+std::unique_ptr<MidiOutput> MidiOutput::createNewDevice (const String& deviceName)
 {
     using namespace CoreMidiHelpers;
 
@@ -615,12 +637,12 @@ MidiOutput* MidiOutput::createNewDevice (const String& deviceName)
                 std::unique_ptr<MidiOutput> midiOutput (new MidiOutput (deviceName, String (deviceIdentifier)));
                 midiOutput->internal = new MidiPortAndEndpoint (0, endpoint);
 
-                return midiOutput.release();
+                return midiOutput;
             }
         }
     }
 
-    return nullptr;
+    return {};
 }
 
 StringArray MidiOutput::getDevices()
@@ -638,7 +660,7 @@ int MidiOutput::getDefaultDeviceIndex()
     return 0;
 }
 
-MidiOutput* MidiOutput::openDevice (int index)
+std::unique_ptr<MidiOutput> MidiOutput::openDevice (int index)
 {
     return openDevice (getAvailableDevices()[index].identifier);
 }

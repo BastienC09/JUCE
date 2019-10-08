@@ -33,7 +33,7 @@
                    juce_audio_processors, juce_audio_utils, juce_core,
                    juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
 
  moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
@@ -116,7 +116,7 @@ public:
         startTimer (500);
     }
 
-    ~MidiDemo()
+    ~MidiDemo() override
     {
         stopTimer();
         midiInputs .clear();
@@ -187,7 +187,7 @@ public:
         if (isInput)
         {
             jassert (midiInputs[index]->inDevice.get() == nullptr);
-            midiInputs[index]->inDevice.reset (MidiInput::openDevice (midiInputs[index]->deviceInfo.identifier, this));
+            midiInputs[index]->inDevice = MidiInput::openDevice (midiInputs[index]->deviceInfo.identifier, this);
 
             if (midiInputs[index]->inDevice.get() == nullptr)
             {
@@ -200,7 +200,7 @@ public:
         else
         {
             jassert (midiOutputs[index]->outDevice.get() == nullptr);
-            midiOutputs[index]->outDevice.reset (MidiOutput::openDevice (midiOutputs[index]->deviceInfo.identifier));
+            midiOutputs[index]->outDevice = MidiOutput::openDevice (midiOutputs[index]->deviceInfo.identifier);
 
             if (midiOutputs[index]->outDevice.get() == nullptr)
             {

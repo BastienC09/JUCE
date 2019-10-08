@@ -261,7 +261,7 @@ public:
         Item findItemWithID (const String& targetId) const; // (recursive search)
 
         String getImageFileID() const;
-        Drawable* loadAsImageFile() const;
+        std::unique_ptr<Drawable> loadAsImageFile() const;
 
         //==============================================================================
         Value getNameValue();
@@ -274,6 +274,7 @@ public:
         bool renameFile (const File& newFile);
 
         bool shouldBeAddedToTargetProject() const;
+        bool shouldBeAddedToTargetExporter (const ProjectExporter&) const;
         bool shouldBeCompiled() const;
         Value getShouldCompileValue();
 

@@ -29,9 +29,31 @@
 
 #if JucePlugin_Build_AUv3
 
+
 #import <CoreAudioKit/CoreAudioKit.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
+
+#if JUCE_MAC
+ #if (! defined MAC_OS_X_VERSION_MIN_REQUIRED) || (! defined MAC_OS_X_VERSION_10_11) || (MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_11)
+  #error AUv3 needs Deployment Target OS X 10.11 or higher to compile
+ #endif
+ #if (defined MAC_OS_X_VERSION_10_13) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_13)
+  #define JUCE_AUV3_MIDI_OUTPUT_SUPPORTED 1
+  #define JUCE_AUV3_VIEW_CONFIG_SUPPORTED 1
+ #endif
+#endif
+
+#if JUCE_IOS
+ #if (! defined __IPHONE_OS_VERSION_MIN_REQUIRED) || (! defined __IPHONE_9_0) || (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_9_0)
+  #error AUv3 needs Deployment Target iOS 9.0 or higher to compile
+ #endif
+ #if (defined __IPHONE_11_0) && (__IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_11_0)
+  #define JUCE_AUV3_MIDI_OUTPUT_SUPPORTED 1
+  #define JUCE_AUV3_VIEW_CONFIG_SUPPORTED 1
+ #endif
+#endif
+
 
 #ifndef __OBJC2__
  #error AUv3 needs Objective-C 2 support (compile with 64-bit)
@@ -41,8 +63,12 @@
 
 #include "../utility/juce_IncludeSystemHeaders.h"
 #include "../utility/juce_IncludeModuleHeaders.h"
-#include "../../juce_graphics/native/juce_mac_CoreGraphicsHelpers.h"
 
+#import <CoreAudioKit/CoreAudioKit.h>
+#import <AudioToolbox/AudioToolbox.h>
+#import <AVFoundation/AVFoundation.h>
+
+#include "../../juce_graphics/native/juce_mac_CoreGraphicsHelpers.h"
 #include "../../juce_audio_basics/native/juce_mac_CoreAudioLayouts.h"
 #include "../../juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp"
 #include "../../juce_audio_processors/format_types/juce_AU_Shared.h"
@@ -113,7 +139,7 @@ public:
         initialiseJuce_GUI();
     }
 
-    virtual ~JuceAudioUnitv3Base() {}
+    virtual ~JuceAudioUnitv3Base() = default;
 
     //==============================================================================
     AUAudioUnit* getAudioUnit() noexcept                                   { return au; }
@@ -423,7 +449,7 @@ public:
         init();
     }
 
-    ~JuceAudioUnitv3()
+    ~JuceAudioUnitv3() override
     {
         auto& processor = getAudioProcessor();
         processor.removeListener (this);
@@ -1503,7 +1529,6 @@ private:
             processBlock (audioBuffer.getBuffer (frameCount), midiMessages);
 
             // send MIDI
-           #if JucePlugin_ProducesMidiOutput
           if (@available(macOS 10.10, iOS 11.0, *))
           {
           
@@ -1517,7 +1542,6 @@ private:
                   midiOut (samplePosition, 0, msg.getRawDataSize(), msg.getRawData());
             }
           }
-           #endif
 
             midiMessages.clear();
 
