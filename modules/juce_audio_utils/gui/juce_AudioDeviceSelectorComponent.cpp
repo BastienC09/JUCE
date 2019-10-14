@@ -119,7 +119,7 @@ public:
           TextLayout layout;
           juce::AttributedString astr;
           astr.setFont(g.getCurrentFont());
-          astr.setText("");
+          astr.setText(item.name);
           astr.setColour(findColour (ListBox::textColourId, true).withMultipliedAlpha (enabled ? 1.0f : 0.6f));
           layout.createLayout(astr, width - x - 2);
           layout.draw(g, Rectangle<float>( x, 0, width - x - 2, height));
