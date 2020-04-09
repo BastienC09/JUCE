@@ -365,18 +365,19 @@ public:
                 if (parseCoordsOrSkip (d, p1, false))
                 {
                     String num;
+                    bool flagValue = false;
 
                     if (parseNextNumber (d, num, false))
                     {
-                        const float angle = degreesToRadians (num.getFloatValue());
+                        auto angle = degreesToRadians (num.getFloatValue());
 
-                        if (parseNextNumber (d, num, false))
+                        if (parseNextFlag (d, flagValue))
                         {
-                            const bool largeArc = num.getIntValue() != 0;
+                            auto largeArc = flagValue;
 
-                            if (parseNextNumber (d, num, false))
+                            if (parseNextFlag (d, flagValue))
                             {
-                                const bool sweep = num.getIntValue() != 0;
+                                auto sweep = flagValue;
 
                                 if (parseCoordsOrSkip (d, p2, false))
                                 {
@@ -1023,7 +1024,8 @@ private:
 
     float getStrokeWidth (const String& strokeWidth) const noexcept
     {
-        return transform.getScaleFactor() * getCoordLength (strokeWidth, viewBoxW);
+        auto transformScale = std::sqrt (std::abs (transform.getDeterminant()));
+        return transformScale * getCoordLength (strokeWidth, viewBoxW);
     }
 
     PathStrokeType getStrokeFor (const XmlPath& xml) const
@@ -1064,7 +1066,7 @@ private:
         if (xml->hasTagName ("use"))
             return useText (xml);
 
-        if (! xml->hasTagName ("text"))
+        if (! xml->hasTagName ("text") && ! xml->hasTagNameIgnoringNamespace ("tspan"))
             return nullptr;
 
         Array<float> xCoords, yCoords, dxCoords, dyCoords;
@@ -1196,7 +1198,7 @@ private:
             auto linkedFile = originalFile.getParentDirectory().getChildFile (link);
 
             if (linkedFile.existsAsFile())
-                inputStream.reset (linkedFile.createInputStream());
+                inputStream = linkedFile.createInputStream();
         }
 
         if (inputStream != nullptr)
@@ -1498,6 +1500,22 @@ private:
             ++s;
 
         text = s;
+        return true;
+    }
+
+    static bool parseNextFlag (String::CharPointerType& text, bool& value)
+    {
+        while (text.isWhitespace() || *text == ',')
+            ++text;
+
+        if (*text != '0' && *text != '1')
+            return false;
+
+        value = *(text++) != '0';
+
+        while (text.isWhitespace() || *text == ',')
+             ++text;
+
         return true;
     }
 

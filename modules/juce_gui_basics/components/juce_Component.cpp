@@ -1300,7 +1300,8 @@ float Component::getApproximateScaleFactorForComponent (Component* targetCompone
             transform = transform.scaled (target->getDesktopScaleFactor());
     }
 
-    return (transform.getScaleFactor() / Desktop::getInstance().getGlobalScaleFactor());
+    auto transformScale = std::sqrt (std::abs (transform.getDeterminant()));
+    return transformScale / Desktop::getInstance().getGlobalScaleFactor();
 }
 
 //==============================================================================
@@ -1845,6 +1846,9 @@ void Component::internalRepaintUnchecked (Rectangle<int> area, bool isEntireComp
                                      : cachedImage->invalidate (area)))
                 return;
 
+        if (area.isEmpty())
+            return;
+
         if (flags.hasHeavyweightPeerFlag)
         {
             if (auto* peer = getPeer())
@@ -1899,12 +1903,10 @@ void Component::paintComponentAndChildren (Graphics& g)
     }
     else
     {
-        g.saveState();
+        Graphics::ScopedSaveState ss (g);
 
         if (! (ComponentHelpers::clipObscuredRegions (*this, g, clipBounds, {}) && g.isClipEmpty()))
             paint (g);
-
-        g.restoreState();
     }
 
     for (int i = 0; i < childComponentList.size(); ++i)
@@ -1915,17 +1917,16 @@ void Component::paintComponentAndChildren (Graphics& g)
         {
             if (child.affineTransform != nullptr)
             {
-                g.saveState();
+                Graphics::ScopedSaveState ss (g);
+
                 g.addTransform (*child.affineTransform);
 
                 if ((child.flags.dontClipGraphicsFlag && ! g.isClipEmpty()) || g.reduceClipRegion (child.getBounds()))
                     child.paintWithinParentContext (g);
-
-                g.restoreState();
             }
             else if (clipBounds.intersects (child.getBounds()))
             {
-                g.saveState();
+                Graphics::ScopedSaveState ss (g);
 
                 if (child.flags.dontClipGraphicsFlag)
                 {
@@ -1949,15 +1950,12 @@ void Component::paintComponentAndChildren (Graphics& g)
                     if (nothingClipped || ! g.isClipEmpty())
                         child.paintWithinParentContext (g);
                 }
-
-                g.restoreState();
             }
         }
     }
 
-    g.saveState();
+    Graphics::ScopedSaveState ss (g);
     paintOverChildren (g);
-    g.restoreState();
 }
 
 void Component::paintEntireComponent (Graphics& g, bool ignoreAlphaLevel)
@@ -1989,10 +1987,10 @@ void Component::paintEntireComponent (Graphics& g, bool ignoreAlphaLevel)
             paintComponentAndChildren (g2);
         }
 
-        g.saveState();
+        Graphics::ScopedSaveState ss (g);
+
         g.addTransform (AffineTransform::scale (1.0f / scale));
         effect->applyEffect (effectImage, g, scale, ignoreAlphaLevel ? 1.0f : getAlpha());
-        g.restoreState();
     }
     else if (componentTransparency > 0 && ! ignoreAlphaLevel)
     {
