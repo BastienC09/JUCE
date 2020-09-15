@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -236,14 +236,14 @@ private:
         }
         else if (type == calloutBoxWindow)
         {
-            auto* colourSelector = new ColourSelector();
+            auto colourSelector = std::make_unique<ColourSelector>();
 
             colourSelector->setName ("background");
             colourSelector->setCurrentColour (findColour (TextButton::buttonColourId));
             colourSelector->setColour (ColourSelector::backgroundColourId, Colours::transparentBlack);
             colourSelector->setSize (300, 400);
 
-            CallOutBox::launchAsynchronously (colourSelector, button.getScreenBounds(), nullptr);
+            CallOutBox::launchAsynchronously (std::move (colourSelector), button.getScreenBounds(), nullptr);
         }
         else if (type == extraComponentsAlertWindow)
         {

@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -19,6 +19,8 @@
 
   ==============================================================================
 */
+
+#pragma once
 
 namespace juce
 {
@@ -37,7 +39,7 @@ namespace juce
 #endif
 
 /** This macro defines the C calling convention used as the standard for JUCE calls. */
-#if JUCE_MSVC
+#if JUCE_WINDOWS
  #define JUCE_CALLTYPE   __stdcall
  #define JUCE_CDECL      __cdecl
 #else
@@ -64,12 +66,14 @@ namespace juce
       @see jassert()
   */
   #define JUCE_BREAK_IN_DEBUGGER        { ::kill (0, SIGTRAP); }
+#elif JUCE_MAC && JUCE_CLANG && JUCE_ARM
+  #define JUCE_BREAK_IN_DEBUGGER        { __builtin_debugtrap(); }
 #elif JUCE_MSVC
   #ifndef __INTEL_COMPILER
     #pragma intrinsic (__debugbreak)
   #endif
   #define JUCE_BREAK_IN_DEBUGGER        { __debugbreak(); }
-#elif JUCE_GCC || JUCE_MAC
+#elif JUCE_INTEL && (JUCE_GCC || JUCE_MAC)
   #if JUCE_NO_INLINE_ASM
    #define JUCE_BREAK_IN_DEBUGGER       { }
   #else

@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -520,12 +520,6 @@ struct BelaAudioIODeviceType  : public AudioIODeviceType
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BelaAudioIODeviceType)
 };
-
-//==============================================================================
-AudioIODeviceType* AudioIODeviceType::createAudioIODeviceType_Bela()
-{
-    return new BelaAudioIODeviceType();
-}
 
 //==============================================================================
 MidiInput::MidiInput (const String& deviceName, const String& deviceID)
