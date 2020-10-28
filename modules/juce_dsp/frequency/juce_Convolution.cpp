@@ -850,7 +850,7 @@ private:
     {
         AudioFormatManager manager;
         manager.registerBasicFormats();
-        std::unique_ptr<AudioFormatReader> formatReader (manager.createReaderFor (stream));
+        std::unique_ptr<AudioFormatReader> formatReader (manager.createReaderFor(std::unique_ptr<InputStream>(stream)));
 
         if (formatReader != nullptr)
         {
