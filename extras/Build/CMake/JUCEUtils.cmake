@@ -444,10 +444,6 @@ function(_juce_add_plugin_wrapper_target)
     install(TARGETS "${target_name}" EXPORT "${JUCE_ARG_INSTALL_EXPORT}")
 
     if(JUCE_ARG_FORMAT STREQUAL "AUv3")
-<<<<<<< HEAD
-=======
-        #find_library(AUv3_AVFoundation AVFoundation REQUIRED)
->>>>>>> Pull-request-fix-ios-cmake-simulator-target
         target_link_libraries("${target_name}" INTERFACE "-framework AVFoundation")
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -583,10 +579,6 @@ function(juce_add_module module_path)
                 continue()
             endif()
 
-<<<<<<< HEAD
-=======
-            #find_library("${module_name}_${module_framework}" ${module_framework} REQUIRED)
->>>>>>> Pull-request-fix-ios-cmake-simulator-target
             target_link_libraries(${module_name} INTERFACE "-framework ${module_framework}")
         endforeach()
 
@@ -682,20 +674,12 @@ function(_juce_link_optional_libraries target)
         get_target_property(needs_storekit ${target} JUCE_NEEDS_STORE_KIT)
 
         if(needs_storekit)
-<<<<<<< HEAD
-=======
-            #find_library(${target}_StoreKit StoreKit REQUIRED)
->>>>>>> Pull-request-fix-ios-cmake-simulator-target
             target_link_libraries(${target} PRIVATE "-framework StoreKit")
         endif()
 
         get_target_property(needs_camera ${target} JUCE_CAMERA_PERMISSION_ENABLED)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND needs_camera)
-<<<<<<< HEAD
-=======
-            #find_library(${target}_ImageIO ImageIO REQUIRED)
->>>>>>> Pull-request-fix-ios-cmake-simulator-target
             target_link_libraries(${target} PRIVATE "-framework ImageIO")
         endif()
     endif()
@@ -1992,10 +1976,6 @@ function(_juce_initialise_target target)
         target_compile_definitions(${target} PUBLIC JUCE_PLUGINHOST_AU=1)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
-<<<<<<< HEAD
-=======
-            #find_library(AU_CoreAudioKit CoreAudioKit REQUIRED)
->>>>>>> Pull-request-fix-ios-cmake-simulator-target
             target_link_libraries(${target} PRIVATE "-framework CoreAudioKit")
         endif()
 
