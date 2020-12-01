@@ -328,7 +328,7 @@ endfunction()
 function(_juce_get_platform_plugin_kinds out)
     set(result Standalone)
 
-    if(APPLE)
+    if(APPLE AND (CMAKE_GENERATOR STREQUAL "Xcode"))
         list(APPEND result AUv3)
     endif()
 
@@ -766,6 +766,7 @@ function(_juce_write_configure_time_info target)
     _juce_append_target_property(file_content PLUGIN_AU_MAIN_TYPE                  ${target} JUCE_AU_MAIN_TYPE_CODE)
     _juce_append_target_property(file_content IS_AU_SANDBOX_SAFE                   ${target} JUCE_AU_SANDBOX_SAFE)
     _juce_append_target_property(file_content IS_PLUGIN_SYNTH                      ${target} JUCE_IS_SYNTH)
+    _juce_append_target_property(file_content SUPPRESS_AU_PLIST_RESOURCE_USAGE     ${target} JUCE_SUPPRESS_AU_PLIST_RESOURCE_USAGE)
     _juce_append_target_property(file_content HARDENED_RUNTIME_ENABLED             ${target} JUCE_HARDENED_RUNTIME_ENABLED)
     _juce_append_target_property(file_content APP_SANDBOX_ENABLED                  ${target} JUCE_APP_SANDBOX_ENABLED)
     _juce_append_target_property(file_content APP_SANDBOX_INHERIT                  ${target} JUCE_APP_SANDBOX_INHERIT)
@@ -1107,7 +1108,7 @@ function(_juce_configure_bundle source_target dest_target)
     if(juce_kind_string STREQUAL "AUv3 AppExtension")
         get_target_property(source_bundle_id ${source_target} JUCE_BUNDLE_ID)
 
-        if(source_bundle_id MATCHES "\\.(.*)$")
+        if(source_bundle_id MATCHES "\\.([^.]+)$")
             set_target_properties(${dest_target} PROPERTIES
                 XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER
                     "${source_bundle_id}.${CMAKE_MATCH_1}AUv3")
@@ -1316,9 +1317,9 @@ function(_juce_set_plugin_target_properties shared_code_target kind)
         _juce_copy_after_build(${shared_code_target} ${target_name} "${output_path}" JUCE_AU_COPY_DIR)
     elseif(kind STREQUAL "AUv3")
         set_target_properties(${target_name} PROPERTIES
+            XCODE_PRODUCT_TYPE "com.apple.product-type.app-extension"
             BUNDLE_EXTENSION appex
             XCODE_ATTRIBUTE_WRAPPER_EXTENSION appex
-            XCODE_ATTRIBUTE_PRODUCT_TYPE "com.apple.product-type.app-extension"
             XCODE_ATTRIBUTE_GENERATE_PKGINFO_FILE YES)
     elseif(kind STREQUAL "AAX")
         set_target_properties(${target_name} PROPERTIES
@@ -1627,10 +1628,6 @@ function(_juce_configure_plugin_targets target)
         target_link_libraries(${target}_AAX PRIVATE juce_aax_sdk)
     endif()
 
-    if(TARGET ${target}_AUv3)
-        target_link_libraries(${target}_AUv3 PUBLIC -fapplication-extension "-e _NSExtensionMain")
-    endif()
-
     if((TARGET ${target}_AUv3) AND (TARGET ${target}_Standalone))
         add_dependencies(${target}_Standalone ${target}_AUv3)
         # Copy the AUv3 into the Standalone app bundle
@@ -1731,6 +1728,8 @@ function(_juce_set_fallback_properties target)
     _juce_set_property_if_not_set(${target} VST_NUM_MIDI_OUTS 16)
 
     _juce_set_property_if_not_set(${target} AU_SANDBOX_SAFE FALSE)
+
+    _juce_set_property_if_not_set(${target} SUPPRESS_AU_PLIST_RESOURCE_USAGE FALSE)
 
     _juce_set_property_if_not_set(${target} HARDENED_RUNTIME_ENABLED NO)
     _juce_set_property_if_not_set(${target} APP_SANDBOX_ENABLED NO)
@@ -1914,6 +1913,7 @@ function(_juce_initialise_target target)
         AU_MAIN_TYPE
         AU_EXPORT_PREFIX
         AU_SANDBOX_SAFE
+        SUPPRESS_AU_PLIST_RESOURCE_USAGE
         AAX_CATEGORY
         PLUGINHOST_AU                   # Set this true if you want to host AU plugins
         USE_LEGACY_COMPATIBILITY_PLUGIN_CODE
