@@ -90,6 +90,7 @@ namespace build_tools
         bool isAuSandboxSafe                    = false;
         bool isPaceProtected                    = false;
         bool isPluginSynth                      = false;
+        bool suppressResourceUsage              = false;
 
     private:
         void write (MemoryOutputStream&) const;
