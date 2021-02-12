@@ -1015,7 +1015,7 @@ private:
     friend struct Param;
 
     //==============================================================================
-    ComSmartPtr<JuceAudioProcessor> audioProcessor;
+    VSTComSmartPtr<JuceAudioProcessor> audioProcessor;
 
     struct MidiController
     {
@@ -1319,6 +1319,11 @@ private:
 
         tresult PLUGIN_API getSize (ViewRect* size) override
         {
+           #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
+            if (getHostType().isAbletonLive() && systemWindow == nullptr)
+                return kResultFalse;
+           #endif
+
             if (size != nullptr && component != nullptr)
             {
                 auto editorBounds = component->getSizeToContainChild();
@@ -1352,13 +1357,13 @@ private:
 
                         auto transformScale = std::sqrt (std::abs (editor->getTransform().getDeterminant()));
 
-                        auto minW = (double) ((float) constrainer->getMinimumWidth()  * transformScale);
-                        auto maxW = (double) ((float) constrainer->getMaximumWidth()  * transformScale);
-                        auto minH = (double) ((float) constrainer->getMinimumHeight() * transformScale);
-                        auto maxH = (double) ((float) constrainer->getMaximumHeight() * transformScale);
+                        auto minW = (double) constrainer->getMinimumWidth()  * transformScale;
+                        auto maxW = (double) constrainer->getMaximumWidth()  * transformScale;
+                        auto minH = (double) constrainer->getMinimumHeight() * transformScale;
+                        auto maxH = (double) constrainer->getMaximumHeight() * transformScale;
 
-                        auto width  = (double) (rectToCheck->right - rectToCheck->left);
-                        auto height = (double) (rectToCheck->bottom - rectToCheck->top);
+                        auto width  = (double) rectToCheck->right - (double) rectToCheck->left;
+                        auto height = (double) rectToCheck->bottom - (double) rectToCheck->top;
 
                         width  = jlimit (minW, maxW, width);
                         height = jlimit (minH, maxH, height);
@@ -1562,8 +1567,15 @@ private:
                 {
                     lastBounds = b;
 
-                    const ScopedValueSetter<bool> resizingParentSetter (resizingParent, true);
-                    resizeHostWindow();
+                    {
+                        const ScopedValueSetter<bool> resizingParentSetter (resizingParent, true);
+                        resizeHostWindow();
+                    }
+
+                   #if JUCE_LINUX
+                    if (getHostType().isBitwigStudio())
+                        repaint();
+                   #endif
                 }
             }
 
@@ -1576,7 +1588,7 @@ private:
                         auto newBounds = getLocalBounds();
 
                        #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
-                        if (! lastBounds.isEmpty() && isWithin (newBounds.toDouble().getAspectRatio(), lastBounds.toDouble().getAspectRatio(), 0.1))
+                        if (! lastBounds.isEmpty() && isWithin (newBounds.toDouble().getAspectRatio(), lastBounds.toDouble().getAspectRatio(), 0.001))
                             return;
                        #endif
 
@@ -1685,7 +1697,7 @@ private:
         //==============================================================================
         ScopedJuceInitialiser_GUI libraryInitialiser;
 
-        ComSmartPtr<JuceVST3EditController> owner;
+        VSTComSmartPtr<JuceVST3EditController> owner;
         AudioProcessor& pluginInstance;
 
         std::unique_ptr<ContentWrapperComponent> component;
@@ -2987,9 +2999,9 @@ private:
     std::atomic<int> refCount { 1 };
 
     AudioProcessor* pluginInstance;
-    ComSmartPtr<Vst::IHostApplication> host;
-    ComSmartPtr<JuceAudioProcessor> comPluginInstance;
-    ComSmartPtr<JuceVST3EditController> juceVST3EditController;
+    VSTComSmartPtr<Vst::IHostApplication> host;
+    VSTComSmartPtr<JuceAudioProcessor> comPluginInstance;
+    VSTComSmartPtr<JuceVST3EditController> juceVST3EditController;
 
     /**
         Since VST3 does not provide a way of knowing the buffer size and sample rate at any point,
@@ -3323,7 +3335,7 @@ private:
     //==============================================================================
     std::atomic<int> refCount { 1 };
     const PFactoryInfo factoryInfo;
-    ComSmartPtr<Vst::IHostApplication> host;
+    VSTComSmartPtr<Vst::IHostApplication> host;
 
     //==============================================================================
     struct ClassEntry
@@ -3345,7 +3357,7 @@ private:
     std::vector<std::unique_ptr<ClassEntry>> classes;
 
     //==============================================================================
-    template<class PClassInfoType>
+    template <class PClassInfoType>
     tresult PLUGIN_API getPClassInfo (Steinberg::int32 index, PClassInfoType* info)
     {
         if (info != nullptr)
