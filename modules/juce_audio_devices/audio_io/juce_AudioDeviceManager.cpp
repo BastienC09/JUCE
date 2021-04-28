@@ -125,6 +125,17 @@ const OwnedArray<AudioIODeviceType>& AudioDeviceManager::getAvailableDeviceTypes
     return availableDeviceTypes;
 }
 
+void AudioDeviceManager::updateCurrentSetup()
+{
+    if (currentAudioDevice != nullptr)
+    {
+        currentSetup.sampleRate     = currentAudioDevice->getCurrentSampleRate();
+        currentSetup.bufferSize     = currentAudioDevice->getCurrentBufferSizeSamples();
+        currentSetup.inputChannels  = currentAudioDevice->getActiveInputChannels();
+        currentSetup.outputChannels = currentAudioDevice->getActiveOutputChannels();
+    }
+}
+
 void AudioDeviceManager::audioDeviceListChanged()
 {
     if (currentAudioDevice != nullptr)
@@ -161,13 +172,7 @@ void AudioDeviceManager::audioDeviceListChanged()
                 initialiseDefault (preferredDeviceName, &currentSetup);
         }
 
-        if (currentAudioDevice != nullptr)
-        {
-            currentSetup.sampleRate     = currentAudioDevice->getCurrentSampleRate();
-            currentSetup.bufferSize     = currentAudioDevice->getCurrentBufferSizeSamples();
-            currentSetup.inputChannels  = currentAudioDevice->getActiveInputChannels();
-            currentSetup.outputChannels = currentAudioDevice->getActiveOutputChannels();
-        }
+        updateCurrentSetup();
     }
 
     sendChangeMessage();
@@ -891,6 +896,7 @@ void AudioDeviceManager::audioDeviceAboutToStartInt (AudioIODevice* const device
             callbacks.getUnchecked(i)->audioDeviceAboutToStart (device);
     }
 
+    updateCurrentSetup();
     sendChangeMessage();
 }
 

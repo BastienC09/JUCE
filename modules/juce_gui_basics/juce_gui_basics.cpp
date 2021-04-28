@@ -41,6 +41,7 @@
 #define JUCE_EVENTS_INCLUDE_WIN32_MESSAGE_WINDOW 1
 #define JUCE_GRAPHICS_INCLUDE_COREGRAPHICS_HELPERS 1
 #define JUCE_GUI_BASICS_INCLUDE_XHEADERS 1
+#define JUCE_GUI_BASICS_INCLUDE_SCOPED_THREAD_DPI_AWARENESS_SETTER 1
 
 #include "juce_gui_basics.h"
 
@@ -252,7 +253,7 @@ namespace juce
  #include "native/juce_win32_DragAndDrop.cpp"
  #include "native/juce_win32_FileChooser.cpp"
 
-#elif JUCE_LINUX
+#elif JUCE_LINUX || JUCE_BSD
  #include "native/x11/juce_linux_X11_Symbols.cpp"
  #include "native/x11/juce_linux_X11_DragAndDrop.cpp"
 
