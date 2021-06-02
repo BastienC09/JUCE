@@ -437,7 +437,7 @@ public:
     Vst::ParamID getProgramParamID()         const noexcept { return programParamID; }
     bool isBypassRegularParameter()          const noexcept { return bypassIsRegularParameter; }
 
-    void setParameterValue (size_t paramIndex, float value)
+    void setParameterValue (Steinberg::int32 paramIndex, float value)
     {
         cachedParamValues.set (paramIndex, value);
     }
@@ -445,7 +445,7 @@ public:
     template <typename Callback>
     void forAllChangedParameters (Callback&& callback)
     {
-        cachedParamValues.ifSet ([&] (size_t index, float value)
+        cachedParamValues.ifSet ([&] (Steinberg::int32 index, float value)
         {
             callback (cachedParamValues.getParamID (index), value);
         });
@@ -527,7 +527,11 @@ private:
             {
                 // we need to remain backward compatible with the old bypass id
                 if (vst3WrapperProvidedBypassParam)
+                {
+                    JUCE_BEGIN_IGNORE_WARNINGS_MSVC (6240)
                     vstParamID = static_cast<Vst::ParamID> ((isUsingManagedParameters() && ! forceLegacyParamIDs) ? paramBypass : numParameters);
+                    JUCE_END_IGNORE_WARNINGS_MSVC
+                }
 
                 bypassParamID = vstParamID;
             }
@@ -603,7 +607,8 @@ class JuceVST3EditController : public Vst::EditController,
                                public Vst::IMidiMapping,
                                public Vst::IUnitInfo,
                                public Vst::ChannelContext::IInfoListener,
-                               public AudioProcessorListener
+                               public AudioProcessorListener,
+                               private ComponentRestarter::Listener
 {
 public:
     JuceVST3EditController (Vst::IHostApplication* host)
@@ -651,15 +656,7 @@ public:
     tresult PLUGIN_API initialize (FUnknown* context) override
     {
         if (hostContext != context)
-        {
-            if (hostContext != nullptr)
-                hostContext->release();
-
             hostContext = context;
-
-            if (hostContext != nullptr)
-                hostContext->addRef();
-        }
 
         return kResultTrue;
     }
@@ -955,10 +952,7 @@ public:
     void setAudioProcessor (JuceAudioProcessor* audioProc)
     {
         if (audioProcessor != audioProc)
-        {
-            audioProcessor = audioProc;
-            setupParameters();
-        }
+            installAudioProcessor (audioProc);
     }
 
     tresult PLUGIN_API connect (IConnectionPoint* other) override
@@ -970,7 +964,7 @@ public:
             if (! audioProcessor.loadFrom (other))
                 sendIntMessage ("JuceVST3EditController", (Steinberg::int64) (pointer_sized_int) this);
             else
-                setupParameters();
+                installAudioProcessor (audioProcessor);
 
             return result;
         }
@@ -1176,7 +1170,7 @@ public:
             endEdit (vstParamId);
     }
 
-    void paramChanged (int parameterIndex, Vst::ParamID vstParamId, double newValue)
+    void paramChanged (Steinberg::int32 parameterIndex, Vst::ParamID vstParamId, double newValue)
     {
         if (inParameterChangedCallback.get())
             return;
@@ -1189,7 +1183,7 @@ public:
         }
         else
         {
-            audioProcessor->setParameterValue ((size_t) parameterIndex, (float) newValue);
+            audioProcessor->setParameterValue (parameterIndex, (float) newValue);
         }
     }
 
@@ -1273,42 +1267,6 @@ private:
     friend struct Param;
 
     //==============================================================================
-    class ComponentRestarter : private AsyncUpdater
-    {
-    public:
-        explicit ComponentRestarter (JuceVST3EditController& controllerIn)
-            : controller (controllerIn) {}
-
-        ~ComponentRestarter() noexcept override
-        {
-            cancelPendingUpdate();
-        }
-
-        void restart (int32 newFlags)
-        {
-            if (newFlags == 0)
-                return;
-
-            flags = newFlags;
-
-            if (MessageManager::getInstance()->isThisTheMessageThread())
-                handleAsyncUpdate();
-            else
-                triggerAsyncUpdate();
-        }
-
-    private:
-        void handleAsyncUpdate() override
-        {
-            if (auto* handler = controller.componentHandler)
-                handler->restartComponent (flags);
-        }
-
-        JuceVST3EditController& controller;
-        int32 flags = 0;
-    };
-
-    //==============================================================================
     VSTComSmartPtr<JuceAudioProcessor> audioProcessor;
 
     struct MidiController
@@ -1322,6 +1280,12 @@ private:
     Vst::ParamID parameterToMidiControllerOffset;
     MidiController parameterToMidiController[(int) numMIDIChannels * (int) Vst::kCountCtrlNumber];
     Vst::ParamID midiControllerToParameter[numMIDIChannels][Vst::kCountCtrlNumber];
+
+    void restartComponentOnMessageThread (int32 flags) override
+    {
+        if (auto* handler = componentHandler)
+            handler->restartComponent (flags);
+    }
 
     //==============================================================================
     struct OwnedParameterListener  : public AudioProcessorParameter::Listener
@@ -1364,10 +1328,14 @@ private:
     float lastScaleFactorReceived = 1.0f;
    #endif
 
-    void setupParameters()
+    void installAudioProcessor (const VSTComSmartPtr<JuceAudioProcessor>& newAudioProcessor)
     {
+        audioProcessor = newAudioProcessor;
+
         if (auto* pluginInstance = getPluginInstance())
         {
+            lastLatencySamples = pluginInstance->getLatencySamples();
+
             pluginInstance->addListener (this);
 
             // as the bypass is not part of the regular parameters we need to listen for it explicitly
@@ -3719,18 +3687,15 @@ using namespace juce;
 
 //==============================================================================
 // The VST3 plugin entry point.
-JUCE_EXPORTED_FUNCTION IPluginFactory* PLUGIN_API GetPluginFactory()
+extern "C" SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory()
 {
     PluginHostType::jucePlugInClientCurrentWrapperType = AudioProcessor::wrapperType_VST3;
 
-   #if JUCE_MSVC || (JUCE_WINDOWS && JUCE_CLANG)
+   #if (JUCE_MSVC || (JUCE_WINDOWS && JUCE_CLANG)) && JUCE_32BIT
     // Cunning trick to force this function to be exported. Life's too short to
     // faff around creating .def files for this kind of thing.
-    #if JUCE_32BIT
-     #pragma comment(linker, "/EXPORT:GetPluginFactory=_GetPluginFactory@0")
-    #else
-     #pragma comment(linker, "/EXPORT:GetPluginFactory=GetPluginFactory")
-    #endif
+    // Unnecessary for 64-bit builds because those don't use decorated function names.
+    #pragma comment(linker, "/EXPORT:GetPluginFactory=_GetPluginFactory@0")
    #endif
 
     if (globalFactory == nullptr)
