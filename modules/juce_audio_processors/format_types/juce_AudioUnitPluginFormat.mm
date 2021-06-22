@@ -304,6 +304,25 @@ namespace AudioUnitFormatHelpers
 
         return nullptr;
     }
+
+    // Audio Unit plugins expect hosts to listen to their view bounds, and to resize
+    // the plugin window/view appropriately.
+  #if JUCE_MAC || JUCE_IOS
+   #if JUCE_IOS
+    #define JUCE_IOS_MAC_VIEW  UIView
+    using ViewComponentBaseClass = UIViewComponent;
+   #else
+    #define JUCE_IOS_MAC_VIEW  NSView
+    using ViewComponentBaseClass = NSViewComponent;
+   #endif
+
+    struct AutoResizingNSViewComponent  : public ViewComponentBaseClass,
+                                          private AsyncUpdater
+    {
+        void childBoundsChanged (Component*) override  { triggerAsyncUpdate(); }
+        void handleAsyncUpdate() override              { resizeToFitView(); }
+    };
+  #endif
 }
 
 //==============================================================================
@@ -857,6 +876,20 @@ public:
         desc.numInputChannels = getTotalNumInputChannels();
         desc.numOutputChannels = getTotalNumOutputChannels();
         desc.isInstrument = (componentDesc.componentType == kAudioUnitType_MusicDevice);
+    }
+
+    void getExtensions (ExtensionsVisitor& visitor) const override
+    {
+        struct Extensions : public ExtensionsVisitor::AudioUnitClient
+        {
+            explicit Extensions (const AudioUnitPluginInstance* instanceIn) : instance (instanceIn) {}
+
+            void* getAudioUnitHandle() const noexcept override   { return instance->audioUnit; }
+
+            const AudioUnitPluginInstance* instance = nullptr;
+        };
+
+        visitor.visitAudioUnitClient (Extensions { this });
     }
 
     void* getPlatformSpecificData() override             { return audioUnit; }
@@ -2288,7 +2321,7 @@ public:
 private:
 
     AudioUnitPluginInstance& plugin;
-    AutoResizingNSViewComponent wrapper;
+    AudioUnitFormatHelpers::AutoResizingNSViewComponent wrapper;
 
    #if JUCE_SUPPORTS_AUv3
     typedef void (^ViewControllerCallbackBlock)(AUViewControllerBase *);
